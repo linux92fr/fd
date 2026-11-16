@@ -6,6 +6,12 @@
   "compatibility_flags": [
     "nodejs_compat"
   ],
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "66751785691047d49512946dc959d949"
+    }
+  ],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
