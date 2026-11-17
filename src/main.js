@@ -332,13 +332,14 @@ async function loadArticles() {
       const date = article.published_at
         ? new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(new Date(article.published_at))
         : '';
-      return `<article class="article-card">
+      return `<a class="article-card" href="/actualites/${encodeURIComponent(article.slug)}">
         ${article.cover_image_url ? `<img class="article-card-image" src="${escapeHtml(article.cover_image_url)}" alt="" loading="lazy" decoding="async">` : ''}
         <span class="article-category">${escapeHtml(article.category)}</span>
         <h3>${escapeHtml(article.title)}</h3>
         ${article.excerpt ? `<p>${escapeHtml(article.excerpt)}</p>` : ''}
         ${date ? `<time datetime="${escapeHtml(article.published_at)}">${escapeHtml(date)}</time>` : ''}
-      </article>`;
+        <span class="article-card-more">Lire l’article →</span>
+      </a>`;
     }).join('')}</div>`;
   } catch (error) {
     console.error('Chargement des actualités impossible:', error);
