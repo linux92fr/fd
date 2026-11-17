@@ -256,3 +256,14 @@
 .admin-quick-links a{text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
 .admin-help{margin:18px 0 0}
 @media(max-width:700px){.admin-stats-grid{grid-template-columns:1fr}.admin-stat{padding:18px}.admin-quick-links{flex-direction:column}.admin-quick-links>*{width:100%}}
+
+
+/* Questionnaire analysis inside the admin */
+.survey-admin-bar{display:grid;grid-template-columns:minmax(150px,1.2fr) minmax(100px,2fr) 34px;gap:12px;align-items:center;margin:14px 0;font-size:13px}
+.survey-admin-bar>div{height:12px;background:#eeeef1;border-radius:20px;overflow:hidden}
+.survey-admin-bar i{display:block;height:100%;background:var(--red);border-radius:20px}
+.survey-admin-bar>b{text-align:right}
+.survey-admin-comments{display:grid;gap:10px}
+.survey-admin-comment{padding:16px;background:#f7f7f9;border:1px solid var(--line);border-radius:8px;white-space:pre-wrap;line-height:1.6}
+@media(max-width:620px){.survey-admin-bar{grid-template-columns:1fr 1fr 28px}.survey-admin-bar>span{grid-column:1/-1}}
+@media print{.admin-header,.admin-title-row button,.admin-form-actions,.admin-help{display:none!important}.admin-main{max-width:none;padding:0}.admin-panel{break-inside:avoid;box-shadow:none}}
