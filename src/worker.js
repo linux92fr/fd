@@ -39,20 +39,22 @@ async function withDatabase(env, callback) {
 async function requireAdmin(request, env) {
   const authorization = request.headers.get("Authorization") || "";
   const token = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
-  if (!token || token.length > 8192) return null;
+  if (!token || token.length > 8192) return { denied: "TOKEN_MISSING" };
   try {
     const { payload } = await jwtVerify(token, AUTH_JWKS, { issuer: AUTH_ISSUER });
-    if (typeof payload.sub !== "string") return null;
+    if (typeof payload.sub !== "string") return { denied: "TOKEN_SUBJECT_MISSING" };
     return await withDatabase(env, async (db) => {
       const result = await db.query(
         'SELECT id, email, role FROM neon_auth."user" WHERE id = $1 AND email = $2 AND "emailVerified" = TRUE',
         [payload.sub, ADMIN_EMAIL]
       );
-      return result.rows[0]?.role === "admin" ? result.rows[0] : null;
+      if (!result.rows[0]) return { denied: "USER_NOT_FOUND_OR_EMAIL_UNVERIFIED" };
+      if (result.rows[0].role !== "admin") return { denied: "USER_ROLE_NOT_ADMIN" };
+      return { admin: result.rows[0] };
     });
   } catch (error) {
-    console.warn("Admin authentication rejected:", error.message);
-    return null;
+    console.warn("Admin authentication rejected:", error.code || error.name || "unknown");
+    return { denied: "JWT_OR_DATABASE_CHECK_FAILED" };
   }
 }
 
@@ -62,8 +64,9 @@ function slugify(value) {
 }
 
 async function handleAdmin(request, env, url, origin) {
-  const admin = await requireAdmin(request, env);
-  if (!admin) return json({ error: "UNAUTHORIZED" }, 401, origin);
+  const access = await requireAdmin(request, env);
+  if (access.denied) return json({ error: access.denied }, 401, origin);
+  const admin = access.admin;
 
   if (url.pathname === "/api/admin/articles" && request.method === "GET") {
     const result = await withDatabase(env, (db) => db.query(
