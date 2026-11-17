@@ -116,7 +116,7 @@ async function dashboard() {
     root.querySelector('#logout').onclick = async () => { await auth.signOut(); login('Vous êtes déconnecté.'); };
     root.querySelector('#new').onclick = () => editor();
     root.querySelectorAll('.edit').forEach(b => b.onclick = () => editor(articles.find(a => String(a.id) === b.dataset.id)));
-  } catch (err) { login(err.message === 'UNAUTHORIZED' ? 'Accès refusé. Vérifiez que le compte est administrateur et que votre adresse est vérifiée.' : 'Veuillez vous connecter pour accéder à l’administration.'); }
+  } catch (err) { login('Diagnostic de connexion : ' + (err.message || 'ERREUR_INCONNUE') + '.'); }
 }
 function editor(a = {}) {
   const el = root.querySelector('#editor'); el.hidden = false;
