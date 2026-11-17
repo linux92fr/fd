@@ -1,5 +1,7 @@
 import './style.css';
-
+if (location.pathname === '/admin') {
+  import('./admin.js');
+} else {
 const nav = [
   ['Accueil', '#accueil'],
   ['Actualités', '#actualites'],
@@ -135,3 +137,5 @@ async function loadArticles() {
 }
 
 loadArticles();
+
+}
