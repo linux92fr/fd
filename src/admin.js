@@ -173,7 +173,7 @@ async function mediaPage() {
     };
     root.querySelectorAll('.media-select').forEach(button=>button.onclick=()=>{
       const url=button.dataset.url;
-      if(mediaReturn){const callback=mediaReturn;mediaReturn=null;callback(url);articlesPage();}
+      if(mediaReturn){const callback=mediaReturn;mediaReturn=null;callback(url);}
       else { navigator.clipboard?.writeText(new URL(url, location.origin).href); root.querySelector('#media-status').textContent='Adresse de l’image copiée.'; }
     });
     root.querySelectorAll('.media-delete').forEach(button=>button.onclick=async()=>{
@@ -250,7 +250,7 @@ function editor(a = {}) {
     }
   };
   el.querySelector('#close').onclick = () => { el.hidden = true; };
-  el.querySelector('#choose-media').onclick = () => { mediaReturn = url => { fields('cover_image_url').value = new URL(url, location.origin).href; if (!preview.hidden) renderPreview(); }; mediaPage(); };
+  el.querySelector('#choose-media').onclick = () => { const saved = Object.fromEntries(new FormData(form).entries()); mediaReturn = url => { saved.cover_image_url = new URL(url, location.origin).href; articlesPage().then(() => editor(saved)); }; mediaPage(); };
   el.querySelector('#preview-toggle').onclick = event => {
     preview.hidden = !preview.hidden;
     event.currentTarget.textContent = preview.hidden ? 'Aperçu de l’article' : 'Masquer l’aperçu';
