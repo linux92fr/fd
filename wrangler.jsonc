@@ -12,6 +12,13 @@
       "id": "66751785691047d49512946dc959d949"
     }
   ],
+  "d1_databases": [
+    {
+      "binding": "SURVEYS_DB",
+      "database_name": "fd-surveys-production",
+      "database_id": "68507ec6-1b38-413b-bcaa-4fe9d0948d0e"
+    }
+  ],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
