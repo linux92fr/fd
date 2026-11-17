@@ -2,6 +2,7 @@ import { createAuthClient } from '@neondatabase/auth';
 
 const auth = createAuthClient('https://ep-sweet-resonance-b9ov2yaa.neonauth.c-7.eu-central-1.aws.neon.tech/neondb/auth');
 const root = document.querySelector('#app');
+let mediaReturn = null;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 async function token() {
@@ -112,12 +113,13 @@ function passwordReset() {
 async function dashboard() {
   try {
     const { overview = {} } = await call('/api/admin/overview');
-    frame('<div class="admin-title-row"><div><span class="eyebrow">Espace sécurisé FO</span><h1>Tableau de bord</h1><p>Vue d’ensemble de l’activité du site et accès rapide aux outils de gestion.</p></div><button id="logout" class="button button-outline-dark">Déconnexion</button></div><section class="admin-panel"><div class="admin-toolbar"><h2>Vue d’ensemble</h2><button id="refresh-overview" class="button button-outline-dark">Actualiser</button></div><div class="admin-stats-grid"><article class="admin-stat"><span>Articles</span><strong>' + Number(overview.articles_total || 0) + '</strong><small>' + Number(overview.articles_published || 0) + ' publiés · ' + Number(overview.articles_draft || 0) + ' brouillons</small></article><article class="admin-stat"><span>Messages reçus</span><strong>' + Number(overview.messages_total || 0) + '</strong><small>' + Number(overview.messages_new || 0) + ' nouveaux · ' + Number(overview.messages_in_progress || 0) + ' en cours</small></article><article class="admin-stat"><span>Messages traités</span><strong>' + Number(overview.messages_resolved || 0) + '</strong><small>Demandes marquées comme traitées</small></article></div></section><section class="admin-panel"><div class="admin-toolbar"><h2>Accès rapides</h2></div><div class="admin-quick-links"><button id="open-articles" class="button button-red">Gérer les articles</button><button id="open-messages" class="button button-outline-dark">Messages reçus</button><button id="open-survey" class="button button-outline-dark">Bilan du questionnaire</button></div><p class="admin-help">Le bilan du questionnaire reste dans son espace sécurisé dédié. Les médias et les autres réglages seront ajoutés progressivement.</p></section>');
+    frame('<div class="admin-title-row"><div><span class="eyebrow">Espace sécurisé FO</span><h1>Tableau de bord</h1><p>Vue d’ensemble de l’activité du site et accès rapide aux outils de gestion.</p></div><button id="logout" class="button button-outline-dark">Déconnexion</button></div><section class="admin-panel"><div class="admin-toolbar"><h2>Vue d’ensemble</h2><button id="refresh-overview" class="button button-outline-dark">Actualiser</button></div><div class="admin-stats-grid"><article class="admin-stat"><span>Articles</span><strong>' + Number(overview.articles_total || 0) + '</strong><small>' + Number(overview.articles_published || 0) + ' publiés · ' + Number(overview.articles_draft || 0) + ' brouillons</small></article><article class="admin-stat"><span>Messages reçus</span><strong>' + Number(overview.messages_total || 0) + '</strong><small>' + Number(overview.messages_new || 0) + ' nouveaux · ' + Number(overview.messages_in_progress || 0) + ' en cours</small></article><article class="admin-stat"><span>Messages traités</span><strong>' + Number(overview.messages_resolved || 0) + '</strong><small>Demandes marquées comme traitées</small></article></div></section><section class="admin-panel"><div class="admin-toolbar"><h2>Accès rapides</h2></div><div class="admin-quick-links"><button id="open-articles" class="button button-red">Gérer les articles</button><button id="open-messages" class="button button-outline-dark">Messages reçus</button><button id="open-survey" class="button button-outline-dark">Bilan du questionnaire</button><button id="open-media" class="button button-outline-dark">Médiathèque</button></div><p class="admin-help">Le bilan du questionnaire reste dans son espace sécurisé dédié. Les médias et les autres réglages seront ajoutés progressivement.</p></section>');
     root.querySelector('#logout').onclick = async () => { await auth.signOut(); login('Vous êtes déconnecté.'); };
     root.querySelector('#refresh-overview').onclick = () => dashboard();
     root.querySelector('#open-articles').onclick = () => articlesPage();
     root.querySelector('#open-messages').onclick = () => messages();
     root.querySelector('#open-survey').onclick = () => surveyPage();
+    root.querySelector('#open-media').onclick = () => mediaPage();
   } catch (err) { login('Impossible de charger le tableau de bord : ' + (err.message || 'ERREUR_INCONNUE') + '.'); }
 }
 async function surveyPage() {
@@ -149,6 +151,39 @@ async function surveyPage() {
     };
   } catch (err) { login('Impossible de charger les résultats : '+(err.message||'ERREUR_INCONNUE')+'.'); }
 }
+
+async function mediaPage() {
+  try {
+    const { media = [], truncated = false } = await call('/api/admin/media');
+    frame('<div class="admin-title-row"><div><span class="eyebrow">Images du site</span><h1>Médiathèque</h1><p>Importez et réutilisez les images de vos articles. Formats JPG, PNG, WebP ou GIF · 8 Mo maximum.</p></div><button id="logout" class="button button-outline-dark">Déconnexion</button></div><section class="admin-panel"><div class="admin-toolbar"><h2>Importer une image</h2><button id="back-dashboard" class="button button-outline-dark">← Tableau de bord</button></div><form id="media-upload" class="admin-form-actions"><input type="file" name="file" accept="image/jpeg,image/png,image/webp,image/gif" required><button class="button button-red">Importer</button></form><p class="admin-message" id="media-status" role="status"></p></section><section class="admin-panel"><div class="admin-toolbar"><h2>Images disponibles ('+media.length+')</h2><button id="refresh-media" class="button button-outline-dark">Actualiser</button></div><div class="media-grid">'+(media.length?media.map(item=>'<article class="media-item"><img src="'+esc(item.url)+'" alt=""><div><small>'+esc(item.key.split('/').pop())+'</small><p>'+Math.round(item.size/1024)+' Ko</p><button class="button button-outline-dark media-select" data-url="'+esc(item.url)+'">Utiliser cette image</button> <button class="text-button media-delete" data-key="'+esc(item.key)+'">Supprimer</button></div></article>').join(''):'<p>Aucune image enregistrée pour le moment.</p>')+'</div>'+(truncated?'<p class="admin-help">Affichage limité aux 200 premières images.</p>':'')+'</section>');
+    root.querySelector('#logout').onclick = async () => { await auth.signOut(); login('Vous êtes déconnecté.'); };
+    root.querySelector('#back-dashboard').onclick = () => { mediaReturn=null; dashboard(); };
+    root.querySelector('#refresh-media').onclick = () => mediaPage();
+    root.querySelector('#media-upload').onsubmit = async e => {
+      e.preventDefault();
+      const button=e.currentTarget.querySelector('button'); button.disabled=true;
+      try {
+        const jwt=await token();
+        const form=new FormData(e.currentTarget);
+        const response=await fetch('/api/admin/media',{method:'POST',headers:{Authorization:'Bearer '+jwt},body:form});
+        const data=await response.json().catch(()=>({}));
+        if(!response.ok) throw new Error(data.error||'Import impossible');
+        mediaPage();
+      } catch(err) { root.querySelector('#media-status').textContent='Erreur : '+err.message; button.disabled=false; }
+    };
+    root.querySelectorAll('.media-select').forEach(button=>button.onclick=()=>{
+      const url=button.dataset.url;
+      if(mediaReturn){const callback=mediaReturn;mediaReturn=null;callback(url);articlesPage();}
+      else { navigator.clipboard?.writeText(new URL(url, location.origin).href); root.querySelector('#media-status').textContent='Adresse de l’image copiée.'; }
+    });
+    root.querySelectorAll('.media-delete').forEach(button=>button.onclick=async()=>{
+      if(!confirm('Supprimer définitivement cette image ?')) return;
+      try { await call('/api/admin/media/'+button.dataset.key.split('/').map(encodeURIComponent).join('/'),{method:'DELETE'}); mediaPage(); }
+      catch(err){ root.querySelector('#media-status').textContent='Suppression impossible : '+err.message; }
+    });
+  } catch(err) { login('Impossible de charger la médiathèque : '+err.message+'.'); }
+}
+
 async function articlesPage() {
   try {
     const { articles = [] } = await call('/api/admin/articles');
@@ -186,7 +221,7 @@ async function messages() {
 }
 function editor(a = {}) {
   const el = root.querySelector('#editor'); el.hidden = false;
-  el.innerHTML = '<div class="admin-toolbar"><h2>' + (a.id ? 'Modifier' : 'Nouvel') + ' article</h2><button id="close" class="text-button">Fermer</button></div><form id="article-form" class="article-form"><input type="hidden" name="id" value="' + esc(a.id || '') + '"><label>Titre<input name="title" maxlength="180" required value="' + esc(a.title || '') + '"></label><label>Slug<input name="slug" maxlength="180" value="' + esc(a.slug || '') + '"></label><label>Catégorie<input name="category" maxlength="80" value="' + esc(a.category || 'Actualités') + '"></label><label>Résumé<textarea name="excerpt" maxlength="320" rows="2">' + esc(a.excerpt || '') + '</textarea></label><label>Contenu<textarea name="content" rows="10" required>' + esc(a.content || '') + '</textarea></label><label>Image (URL HTTPS)<input name="cover_image_url" type="url" value="' + esc(a.cover_image_url || '') + '"></label><div class="admin-form-actions"><button type="button" id="preview-toggle" class="button button-outline-dark">Aperçu de l’article</button><button class="button button-outline-dark" name="status" value="draft">Enregistrer le brouillon</button><button class="button button-red" name="status" value="published">Publier</button>' + (a.id ? '<button type="button" id="archive" class="text-button">Archiver</button>' : '') + '</div><p class="admin-message" role="status"></p></form><section id="article-preview" class="article-preview" hidden aria-live="polite"><div class="preview-heading"><span class="eyebrow">Prévisualisation · non publiée</span><span class="preview-status">Visible uniquement ici</span></div><article class="preview-article"><img class="preview-cover" alt="" hidden><span class="preview-category"></span><h1 class="preview-title"></h1><p class="preview-excerpt"></p><div class="preview-content"></div></article></section>';
+  el.innerHTML = '<div class="admin-toolbar"><h2>' + (a.id ? 'Modifier' : 'Nouvel') + ' article</h2><button id="close" class="text-button">Fermer</button></div><form id="article-form" class="article-form"><input type="hidden" name="id" value="' + esc(a.id || '') + '"><label>Titre<input name="title" maxlength="180" required value="' + esc(a.title || '') + '"></label><label>Slug<input name="slug" maxlength="180" value="' + esc(a.slug || '') + '"></label><label>Catégorie<input name="category" maxlength="80" value="' + esc(a.category || 'Actualités') + '"></label><label>Résumé<textarea name="excerpt" maxlength="320" rows="2">' + esc(a.excerpt || '') + '</textarea></label><label>Contenu<textarea name="content" rows="10" required>' + esc(a.content || '') + '</textarea></label><label>Image (URL HTTPS)<input name="cover_image_url" type="url" value="' + esc(a.cover_image_url || '') + '"></label><button type="button" id="choose-media" class="button button-outline-dark">Choisir dans la médiathèque</button><div class="admin-form-actions"><button type="button" id="preview-toggle" class="button button-outline-dark">Aperçu de l’article</button><button class="button button-outline-dark" name="status" value="draft">Enregistrer le brouillon</button><button class="button button-red" name="status" value="published">Publier</button>' + (a.id ? '<button type="button" id="archive" class="text-button">Archiver</button>' : '') + '</div><p class="admin-message" role="status"></p></form><section id="article-preview" class="article-preview" hidden aria-live="polite"><div class="preview-heading"><span class="eyebrow">Prévisualisation · non publiée</span><span class="preview-status">Visible uniquement ici</span></div><article class="preview-article"><img class="preview-cover" alt="" hidden><span class="preview-category"></span><h1 class="preview-title"></h1><p class="preview-excerpt"></p><div class="preview-content"></div></article></section>';
   const form = el.querySelector('#article-form');
   const preview = el.querySelector('#article-preview');
   const fields = name => form.elements.namedItem(name);
@@ -215,6 +250,7 @@ function editor(a = {}) {
     }
   };
   el.querySelector('#close').onclick = () => { el.hidden = true; };
+  el.querySelector('#choose-media').onclick = () => { mediaReturn = url => { fields('cover_image_url').value = new URL(url, location.origin).href; if (!preview.hidden) renderPreview(); }; mediaPage(); };
   el.querySelector('#preview-toggle').onclick = event => {
     preview.hidden = !preview.hidden;
     event.currentTarget.textContent = preview.hidden ? 'Aperçu de l’article' : 'Masquer l’aperçu';
