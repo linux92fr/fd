@@ -55,7 +55,7 @@ if (/^\/admin\/?$/.test(location.pathname)) {
         <p>Vous pouvez également consulter le <a href="/#questionnaires">questionnaire destiné aux salariés</a> pour faire connaître vos attentes et vos priorités de manière anonyme.</p>
       </section>
     </main>
-    <footer class="site-footer"><a class="footer-brand" href="/"><strong>FO</strong> FOCOM · Free Distributions</a><span>À l'écoute des salariés</span><a href="/">Retour à l'accueil ↑</a></footer>
+    <footer class="site-footer"><a class="footer-brand" href="/"><img class="footer-logo" src="/logo-focom-fond-rouge.png" alt="FOCOM"><span>FOCOM · Free Distributions</span></a><span>À l'écoute des salariés</span><a href="/">Retour à l'accueil ↑</a></footer>
   `;
 
 installBackToTop();
@@ -253,7 +253,7 @@ document.querySelector('#app').innerHTML = `
     </section>
   </main>
 
-  <footer class="site-footer"><a class="footer-brand" href="#accueil"><strong>FO</strong> FOCOM · Free Distributions</a><span>Un site dédié aux salariés de Free Distributions</span><nav class="footer-legal"><a href="/mentions-legales">Mentions légales</a><a href="/confidentialite">Confidentialité</a><a href="/cookies">Cookies</a></nav><a href="#accueil">Retour en haut ↑</a></footer>
+  <footer class="site-footer"><a class="footer-brand" href="#accueil"><img class="footer-logo" src="/logo-focom-fond-rouge.png" alt="FOCOM"><span>FOCOM · Free Distributions</span></a><span>Un site dédié aux salariés de Free Distributions</span><nav class="footer-legal"><a href="/mentions-legales">Mentions légales</a><a href="/confidentialite">Confidentialité</a><a href="/cookies">Cookies</a></nav><a href="#accueil">Retour en haut ↑</a></footer>
 `;
 
 installBackToTop();

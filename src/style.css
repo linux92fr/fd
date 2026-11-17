@@ -240,3 +240,7 @@
 @media(max-width:620px){.back-to-top{right:16px;bottom:16px;width:48px;height:48px}}
 
 .legal-page{max-width:920px;margin:auto;padding:64px 28px 90px;min-height:65vh}.legal-page h1{font-size:clamp(36px,5vw,54px);margin:14px 0}.legal-intro{max-width:720px;color:var(--muted);font-size:18px;line-height:1.75;margin:0 0 38px}.legal-content{display:grid;gap:18px}.legal-content section{background:#fff;border:1px solid #e8e8eb;border-radius:12px;padding:25px 28px}.legal-content h2{font-size:20px;margin:0 0 12px}.legal-content p{color:#555761;line-height:1.8;margin:9px 0}.legal-content a{color:var(--red);text-decoration:underline}.footer-legal{display:flex;gap:16px;flex-wrap:wrap}.footer-legal a{color:inherit;text-decoration:underline}@media(max-width:620px){.legal-page{padding:48px 22px 65px}.legal-content section{padding:20px}}
+
+/* Official FOCOM logo in all page footers */
+.footer-brand{display:inline-flex;align-items:center;gap:11px}
+.footer-logo{display:block;width:48px;height:48px;object-fit:cover;border-radius:5px}
