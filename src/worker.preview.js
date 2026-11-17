@@ -59,12 +59,65 @@ function html(message, status = 403) {
   }));
 }
 
+
+async function handleSurvey(request, env) {
+  if (!env.SURVEYS_DB) return json({ error: "SURVEY_STORAGE_UNAVAILABLE" }, 503);
+  if (request.headers.get("content-type")?.split(";")[0].trim() !== "application/json") {
+    return json({ error: "INVALID_CONTENT_TYPE" }, 415);
+  }
+  const origin = request.headers.get("Origin");
+  if (origin !== "https://fd-preview.linux92fr.workers.dev") {
+    return json({ error: "INVALID_ORIGIN" }, 403);
+  }
+
+  let body;
+  try { body = await request.json(); } catch { return json({ error: "INVALID_JSON" }, 400); }
+  // Honeypot: silently accept bots without storing their content.
+  if (typeof body.website === "string" && body.website.trim()) {
+    return json({ ok: true, message: "Merci pour votre participation." });
+  }
+
+  const conditions = Number(body.conditions);
+  const recognition = Number(body.recognition);
+  const allowedPriorities = new Set([
+    "salary", "commissions", "staffing", "schedules", "workload",
+    "training", "career", "management", "health", "recognition", "other"
+  ]);
+  const priorities = Array.isArray(body.priorities)
+    ? [...new Set(body.priorities.filter(value => typeof value === "string" && allowedPriorities.has(value)))]
+    : [];
+  const comment = typeof body.comment === "string" ? body.comment.trim() : "";
+
+  if (!Number.isInteger(conditions) || conditions < 1 || conditions > 5 ||
+      !Number.isInteger(recognition) || recognition < 1 || recognition > 5 ||
+      priorities.length < 1 || priorities.length > allowedPriorities.size ||
+      comment.length > 1500) {
+    return json({ error: "INVALID_ANSWERS", message: "Vérifiez les réponses obligatoires et la longueur du commentaire." }, 400);
+  }
+
+  const id = crypto.randomUUID();
+  const answers = JSON.stringify({ conditions, recognition, priorities, comment });
+  try {
+    await env.SURVEYS_DB.prepare(
+      "INSERT INTO survey_responses (id, answers_json) VALUES (?, ?)"
+    ).bind(id, answers).run();
+    return json({ ok: true, message: "Merci pour votre participation. Votre réponse anonyme a bien été enregistrée." });
+  } catch (error) {
+    console.error("Survey submission failed:", error?.message || "unknown");
+    return json({ error: "SURVEY_SAVE_FAILED", message: "L'enregistrement a échoué. Merci de réessayer." }, 503);
+  }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
     if (url.pathname === "/api/health" && request.method === "GET") {
       return json({ ok: true, preview: true, database: false, mode: "read-only-demo" });
+    }
+
+    if (url.pathname === "/api/survey" && request.method === "POST") {
+      return handleSurvey(request, env);
     }
 
     if (url.pathname === "/api/articles" && request.method === "GET") {
