@@ -7,7 +7,7 @@ const allowedOrigins = new Set([
 ]);
 const AUTH_BASE_URL = "https://ep-sweet-resonance-b9ov2yaa.neonauth.c-7.eu-central-1.aws.neon.tech/neondb/auth";
 const AUTH_JWKS = createRemoteJWKSet(new URL(AUTH_BASE_URL + "/.well-known/jwks.json"));
-const AUTH_ISSUER = new URL(AUTH_BASE_URL).origin;
+const AUTH_ISSUER = AUTH_BASE_URL;
 const ADMIN_EMAIL = "free-distri@focom-iliad.fr";
 
 function json(data, status = 200, origin = "") {
