@@ -54,6 +54,72 @@ async function requireSurveyAdmin(request) {
   }
 }
 
+
+async function handleContact(request, env) {
+  const origin = request.headers.get("Origin") || "";
+  if (!allowedOrigins.has(origin)) return json({ error: "INVALID_ORIGIN" }, 403, origin);
+  if (!env.BREVO_API_KEY) return json({ error: "MAIL_NOT_CONFIGURED" }, 503, origin);
+  if (request.headers.get("content-type")?.split(";")[0].trim() !== "application/json") {
+    return json({ error: "INVALID_CONTENT_TYPE" }, 415, origin);
+  }
+
+  let body;
+  try { body = await request.json(); } catch { return json({ error: "INVALID_JSON" }, 400, origin); }
+  if (typeof body.website === "string" && body.website.trim()) {
+    return json({ ok: true, message: "Votre message a bien été envoyé." }, 200, origin);
+  }
+
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  const email = typeof body.email === "string" ? body.email.trim() : "";
+  const subject = typeof body.subject === "string" ? body.subject.trim() : "";
+  const message = typeof body.message === "string" ? body.message.trim() : "";
+  const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  if (name.length > 120 || !validEmail || email.length > 254 ||
+      !subject || subject.length > 160 || message.length < 10 || message.length > 5000) {
+    return json({ error: "INVALID_FIELDS", message: "Vérifiez votre adresse e-mail, l'objet et le contenu du message (10 à 5 000 caractères)." }, 400, origin);
+  }
+
+  const safeName = name.replace(/[\r\n<>]/g, " ").trim();
+  const safeSubject = subject.replace(/[\r\n]/g, " ").trim();
+  const textContent = [
+    "Nouveau message depuis le formulaire de contact FO Free Distributions",
+    "",
+    "Nom : " + (safeName || "Non renseigné"),
+    "Adresse de réponse : " + email,
+    "Objet : " + safeSubject,
+    "",
+    message,
+  ].join("\n");
+
+  try {
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        "accept": "application/json",
+        "api-key": env.BREVO_API_KEY,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        sender: { name: "FO Free Distributions", email: "contact@focom-iliad.fr" },
+        to: [{ email: "free-distri@focom-iliad.fr", name: "FO Free Distributions" }],
+        replyTo: { email, ...(safeName ? { name: safeName } : {}) },
+        subject: "[Contact site FD] " + safeSubject,
+        textContent,
+      }),
+    });
+    if (!response.ok) {
+      const detail = await response.text();
+      console.error("Brevo contact delivery failed:", response.status, detail.slice(0, 500));
+      return json({ error: "MAIL_DELIVERY_FAILED", message: "L'envoi n'a pas abouti. Merci de réessayer ultérieurement." }, 503, origin);
+    }
+    return json({ ok: true, message: "Merci, votre message a bien été envoyé à l'équipe FO." }, 200, origin);
+  } catch (error) {
+    console.error("Contact email request failed:", error?.name || "unknown");
+    return json({ error: "MAIL_DELIVERY_FAILED", message: "L'envoi n'a pas abouti. Merci de réessayer ultérieurement." }, 503, origin);
+  }
+}
+
 async function handleSurvey(request, env) {
   if (!env.SURVEYS_DB) return json({ error: "SURVEY_STORAGE_UNAVAILABLE" }, 503);
   if (request.headers.get("content-type")?.split(";")[0].trim() !== "application/json") {
@@ -339,6 +405,8 @@ export default {
         return json({ error: "ARTICLES_UNAVAILABLE" }, 503, origin);
       }
     }
+
+    if (url.pathname === "/api/contact" && request.method === "POST") return handleContact(request, env);
 
     if (url.pathname === "/api/survey" && request.method === "POST") return handleSurvey(request, env);
 
