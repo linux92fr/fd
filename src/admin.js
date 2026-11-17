@@ -5,8 +5,9 @@ const root = document.querySelector('#app');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 async function token() {
-  const value = await auth.getJWTToken?.();
-  return typeof value === 'string' ? value : value?.token || value?.accessToken || null;
+  const result = await auth.token();
+  if (result?.error) throw new Error(result.error.message || 'Session expirée');
+  return result?.data?.token || null;
 }
 async function call(path, options = {}) {
   const jwt = await token();
@@ -20,7 +21,7 @@ function frame(content) {
   root.innerHTML = '<div class="admin-shell"><header class="admin-header"><a class="admin-brand" href="/"><strong>FO</strong> FOCOM · Free Distributions</a><a href="/">← Voir le site</a></header><main class="admin-main">' + content + '</main></div>';
 }
 function login(message = '') {
-  frame('<section class="admin-panel admin-login"><span class="eyebrow">Espace sécurisé</span><h1>Administration</h1><p>Connectez-vous avec le compte administrateur.</p><form id="login"><label>Adresse e-mail<input name="email" type="email" value="free-distri@focom-iliad.fr" required autocomplete="username"></label><label>Mot de passe<input name="password" type="password" required autocomplete="current-password"></label><button class="button button-red">Se connecter</button><p class="admin-message">' + esc(message) + '</p></form></section>');
+  frame('<section class="admin-panel admin-login"><span class="eyebrow">Espace sécurisé</span><h1>Administration</h1><p>Connectez-vous avec le compte administrateur.</p><form id="login"><label>Adresse e-mail<input name="email" type="email" value="free-distri@focom-iliad.fr" required autocomplete="username"></label><label>Mot de passe<input name="password" type="password" required autocomplete="current-password"></label><button class="button button-red">Se connecter</button><p class="admin-message">' + esc(message) + '</p></form><button type="button" id="forgot-password" class="text-button">Mot de passe oublié ?</button></section>');
   root.querySelector('#login').addEventListener('submit', async e => {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
@@ -29,6 +30,53 @@ function login(message = '') {
       if (result?.error) throw new Error(result.error.message);
       await dashboard();
     } catch (err) { login(err.message || 'Connexion impossible.'); }
+  });
+  root.querySelector('#forgot-password').addEventListener('click', () => passwordRequest());
+}
+function passwordRequest(message = '') {
+  frame('<section class="admin-panel admin-login"><span class="eyebrow">Récupération du compte</span><h1>Réinitialiser le mot de passe</h1><p>Saisissez l’adresse e-mail de votre compte administrateur. Vous recevrez un lien pour choisir un nouveau mot de passe.</p><form id="password-request"><label>Adresse e-mail<input name="email" type="email" value="free-distri@focom-iliad.fr" required autocomplete="email"></label><button class="button button-red">Envoyer le lien</button><p class="admin-message" role="status">' + esc(message) + '</p></form><button type="button" id="back-login" class="text-button">← Retour à la connexion</button></section>');
+  root.querySelector('#back-login').onclick = () => login();
+  root.querySelector('#password-request').addEventListener('submit', async e => {
+    e.preventDefault();
+    const button = e.currentTarget.querySelector('button[type="submit"], button:not([type])');
+    button.disabled = true;
+    try {
+      const email = new FormData(e.currentTarget).get('email');
+      const result = await auth.requestPasswordReset({ email, redirectTo: location.origin + '/admin?reset-password=1' });
+      if (result?.error) throw new Error(result.error.message || 'Envoi impossible.');
+      passwordRequest('Si cette adresse correspond à un compte, un e-mail de réinitialisation vient d’être envoyé. Vérifiez aussi vos courriers indésirables.');
+    } catch (err) {
+      passwordRequest(err.message || 'Impossible d’envoyer le lien. Réessayez.');
+    }
+  });
+}
+function passwordReset() {
+  const params = new URLSearchParams(location.search);
+  const resetToken = params.get('token');
+  const authError = params.get('error');
+  if (!resetToken) {
+    passwordRequest(authError ? 'Le lien est invalide ou expiré. Vous pouvez demander un nouvel e-mail.' : 'Le lien de réinitialisation est incomplet.');
+    return;
+  }
+  frame('<section class="admin-panel admin-login"><span class="eyebrow">Sécurisation du compte</span><h1>Choisir un nouveau mot de passe</h1><form id="password-reset"><label>Nouveau mot de passe<input name="password" type="password" minlength="8" required autocomplete="new-password"></label><label>Confirmer le mot de passe<input name="confirm" type="password" minlength="8" required autocomplete="new-password"></label><button class="button button-red">Enregistrer le nouveau mot de passe</button><p class="admin-message" role="status"></p></form></section>');
+  root.querySelector('#password-reset').addEventListener('submit', async e => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const values = new FormData(form);
+    const password = values.get('password');
+    const message = form.querySelector('.admin-message');
+    if (password !== values.get('confirm')) { message.textContent = 'Les deux mots de passe ne correspondent pas.'; return; }
+    const button = form.querySelector('button');
+    button.disabled = true;
+    try {
+      const result = await auth.resetPassword({ newPassword: password, token: resetToken });
+      if (result?.error) throw new Error(result.error.message || 'Réinitialisation impossible.');
+      history.replaceState({}, '', '/admin');
+      login('Mot de passe modifié. Vous pouvez maintenant vous connecter.');
+    } catch (err) {
+      message.textContent = err.message || 'Le lien est invalide ou expiré. Demandez-en un nouveau.';
+      button.disabled = false;
+    }
   });
 }
 async function dashboard() {
@@ -57,4 +105,7 @@ function editor(a = {}) {
     catch (err) { el.querySelector('.admin-message').textContent = err.message; }
   });
 }
-if (location.pathname === '/admin') dashboard();
+if (location.pathname === '/admin' || location.pathname === '/admin/') {
+  if (new URLSearchParams(location.search).has('reset-password')) passwordReset();
+  else dashboard();
+}
