@@ -76,9 +76,63 @@ document.querySelector('#app').innerHTML = `
       <a class="text-link" href="#contact">Une question ? Contactez FO <span>→</span></a>
     </section>
 
-    <section class="section survey-section" id="questionnaires">
-      <div><span class="eyebrow">Votre avis compte</span><h2>Questionnaires & consultations</h2><p>Des consultations pourront être proposées aux salariés de Free Distributions pour recueillir leurs attentes et faire remonter leurs priorités.</p></div>
-      <div class="survey-symbol">?</div>
+    <section class="section light-section survey-section" id="questionnaires">
+      <div class="survey-intro">
+        <span class="eyebrow">Votre avis compte</span>
+        <h2>Donnez votre avis <span>en toute confidentialité.</span></h2>
+        <p>Cette consultation permet de faire remonter les attentes et les priorités des salariés de Free Distributions. Vos réponses sont enregistrées sans nom ni adresse e-mail.</p>
+        <div class="survey-privacy"><strong>Questionnaire anonyme</strong><span>Aucun nom ni e-mail n'est demandé. Évitez toutefois de mentionner des personnes ou des informations permettant de vous identifier dans votre commentaire.</span></div>
+      </div>
+      <form id="fd-survey-form" class="survey-form">
+        <fieldset class="survey-question">
+          <legend><span>01</span> Comment évaluez-vous globalement vos conditions de travail ? <b>*</b></legend>
+          <div class="rating-options">
+            <label><input type="radio" name="conditions" value="1" required><span>1</span><small>Très mauvaises</small></label>
+            <label><input type="radio" name="conditions" value="2"><span>2</span><small>Mauvaises</small></label>
+            <label><input type="radio" name="conditions" value="3"><span>3</span><small>Moyennes</small></label>
+            <label><input type="radio" name="conditions" value="4"><span>4</span><small>Bonnes</small></label>
+            <label><input type="radio" name="conditions" value="5"><span>5</span><small>Très bonnes</small></label>
+          </div>
+        </fieldset>
+        <fieldset class="survey-question">
+          <legend><span>02</span> Quels sujets devraient être prioritaires ? <b>*</b></legend>
+          <p class="survey-hint">Plusieurs choix possibles.</p>
+          <div class="priority-options">
+            <label><input type="checkbox" name="priorities" value="salary"><span>Salaires et pouvoir d'achat</span></label>
+            <label><input type="checkbox" name="priorities" value="commissions"><span>Primes et commissions</span></label>
+            <label><input type="checkbox" name="priorities" value="staffing"><span>Effectifs et moyens en boutique</span></label>
+            <label><input type="checkbox" name="priorities" value="schedules"><span>Horaires et équilibre vie professionnelle / personnelle</span></label>
+            <label><input type="checkbox" name="priorities" value="workload"><span>Charge et organisation du travail</span></label>
+            <label><input type="checkbox" name="priorities" value="training"><span>Formation</span></label>
+            <label><input type="checkbox" name="priorities" value="career"><span>Évolution professionnelle</span></label>
+            <label><input type="checkbox" name="priorities" value="management"><span>Management et communication</span></label>
+            <label><input type="checkbox" name="priorities" value="health"><span>Santé, sécurité et conditions de travail</span></label>
+            <label><input type="checkbox" name="priorities" value="recognition"><span>Reconnaissance du travail</span></label>
+            <label><input type="checkbox" name="priorities" value="other"><span>Autre sujet</span></label>
+          </div>
+        </fieldset>
+        <fieldset class="survey-question">
+          <legend><span>03</span> Vous sentez-vous reconnu(e) pour le travail que vous accomplissez ? <b>*</b></legend>
+          <div class="rating-options">
+            <label><input type="radio" name="recognition" value="1" required><span>1</span><small>Pas du tout</small></label>
+            <label><input type="radio" name="recognition" value="2"><span>2</span><small>Peu</small></label>
+            <label><input type="radio" name="recognition" value="3"><span>3</span><small>Moyennement</small></label>
+            <label><input type="radio" name="recognition" value="4"><span>4</span><small>Bien</small></label>
+            <label><input type="radio" name="recognition" value="5"><span>5</span><small>Tout à fait</small></label>
+          </div>
+        </fieldset>
+        <fieldset class="survey-question">
+          <legend><span>04</span> Quelle amélioration vous paraît la plus urgente ?</legend>
+          <textarea name="comment" rows="5" maxlength="1500" placeholder="Exprimez librement vos attentes ou vos propositions (1 500 caractères maximum). Ne mentionnez pas de nom ni d'information permettant de vous identifier."></textarea>
+          <p class="survey-hint"><span id="survey-char-count">0</span> / 1 500 caractères · réponse facultative</p>
+        </fieldset>
+        <div class="survey-honeypot" aria-hidden="true"><label>Ne pas remplir<input name="website" type="text" tabindex="-1" autocomplete="off"></label></div>
+        <div class="survey-submit-row">
+          <p>Les réponses sont utilisées pour établir une synthèse collective des attentes exprimées.</p>
+          <button class="button button-red" type="submit">Envoyer mes réponses <span>→</span></button>
+        </div>
+        <p id="survey-message" class="survey-message" role="status" aria-live="polite"></p>
+      </form>
     </section>
 
     <section class="contact-section" id="contact">
