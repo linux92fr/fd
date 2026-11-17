@@ -120,7 +120,6 @@ async function surveyResults(request, env) {
 }
 
 function dashboardHtml() {
-  return function dashboardHtml() {
   return `<!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow"><title>Résultats questionnaire · FO Free Distributions</title>
@@ -144,8 +143,8 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{text-align:left;p
 @media print{body{background:white}header{background:white;color:#222;border-bottom:1px solid #ccc;padding:12px 0}header a,.actions{display:none!important}main{max-width:none;margin:15px 0;padding:0}.card,.panel{box-shadow:none;break-inside:avoid}.cards{grid-template-columns:repeat(3,1fr)}.grid{grid-template-columns:1fr 1fr}}
 </style></head><body>
 <header><div><strong>FO</strong> FOCOM · Free Distributions — Administration</div><a href="/">← Retour au site</a></header>
-<main><span class="eyebrow">Consultation des salariés · préproduction</span><h1>Résultats du questionnaire</h1>
-<p class="muted">Données anonymes recueillies sur l'environnement de préproduction. Accès réservé à l'administrateur.</p>
+<main><span class="eyebrow">Consultation des salariés · production</span><h1>Résultats du questionnaire</h1>
+<p class="muted">Données anonymes recueillies sur l'environnement de production. Accès réservé à l'administrateur.</p>
 <div class="actions"><button class="btn" id="csv">Exporter en CSV</button><button class="btn alt" id="pdf">Imprimer / Enregistrer en PDF</button><button class="btn alt" id="refresh">Actualiser</button></div>
 <div id="status" class="status">Chargement des résultats…</div>
 <div id="results" hidden>
@@ -189,7 +188,6 @@ function csv(){
 }
 $('#csv').onclick=csv;$('#pdf').onclick=()=>window.print();$('#refresh').onclick=load;load();
 </script></body></html>`;
-};
 }
 
 async function requireAdmin(request, env) {
