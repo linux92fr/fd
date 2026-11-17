@@ -40,9 +40,18 @@ async function requireAdmin(request, env) {
   const authorization = request.headers.get("Authorization") || "";
   const token = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
   if (!token || token.length > 8192) return { denied: "TOKEN_MISSING" };
+
+  let payload;
   try {
-    const { payload } = await jwtVerify(token, AUTH_JWKS, { issuer: AUTH_ISSUER });
-    if (typeof payload.sub !== "string") return { denied: "TOKEN_SUBJECT_MISSING" };
+    ({ payload } = await jwtVerify(token, AUTH_JWKS, { issuer: AUTH_ISSUER }));
+  } catch (error) {
+    const code = String(error.code || error.name || "UNKNOWN").replace(/[^A-Z0-9_]/gi, "").slice(0, 64);
+    console.warn("Admin JWT verification failed:", code);
+    return { denied: "JWT_VERIFICATION_FAILED_" + code };
+  }
+  if (typeof payload.sub !== "string") return { denied: "TOKEN_SUBJECT_MISSING" };
+
+  try {
     return await withDatabase(env, async (db) => {
       const result = await db.query(
         'SELECT id, email, role FROM neon_auth."user" WHERE id = $1 AND email = $2 AND "emailVerified" = TRUE',
@@ -53,8 +62,9 @@ async function requireAdmin(request, env) {
       return { admin: result.rows[0] };
     });
   } catch (error) {
-    console.warn("Admin authentication rejected:", error.code || error.name || "unknown");
-    return { denied: "JWT_OR_DATABASE_CHECK_FAILED" };
+    const code = String(error.code || error.name || "UNKNOWN").replace(/[^A-Z0-9_]/gi, "").slice(0, 64);
+    console.error("Admin database check failed:", code);
+    return { denied: "DATABASE_CHECK_FAILED_" + code };
   }
 }
 
