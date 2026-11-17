@@ -41,6 +41,45 @@ if (/^\/admin\/?$/.test(location.pathname)) {
     </main>
     <footer class="site-footer"><a class="footer-brand" href="/"><strong>FO</strong> FOCOM · Free Distributions</a><span>À l'écoute des salariés</span><a href="/">Retour à l'accueil ↑</a></footer>
   `;
+
+// Contact form handler must be registered on the dedicated /contact route.
+const contactForm = document.querySelector('#fd-contact-form');
+if (contactForm) {
+  const contactStatus = document.querySelector('#contact-message');
+  contactForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const submit = contactForm.querySelector('button[type="submit"]');
+    const data = new FormData(contactForm);
+    submit.disabled = true;
+    submit.textContent = 'Envoi en cours…';
+    contactStatus.textContent = '';
+    contactStatus.className = 'contact-message';
+    try {
+      const response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({
+          name: String(data.get('name') || ''),
+          email: String(data.get('email') || ''),
+          subject: String(data.get('subject') || ''),
+          message: String(data.get('message') || ''),
+          website: String(data.get('website') || ''),
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.ok) throw new Error(result.message || 'Impossible d’envoyer votre message.');
+      contactForm.reset();
+      contactStatus.textContent = result.message || 'Votre message a bien été envoyé.';
+      contactStatus.className = 'contact-message is-success';
+    } catch (error) {
+      contactStatus.textContent = error.message || 'Une erreur est survenue. Merci de réessayer.';
+      contactStatus.className = 'contact-message is-error';
+    } finally {
+      submit.disabled = false;
+      submit.innerHTML = 'Envoyer le message <span>→</span>';
+    }
+  });
+}
 } else {
 const nav = [
   ['Accueil', '#accueil'],
