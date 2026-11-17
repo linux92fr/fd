@@ -53,7 +53,9 @@ document.querySelector('#app').innerHTML = `
 
     <section class="section light-section" id="actualites">
       <div class="section-heading"><div><span class="eyebrow">Restez informés</span><h2>Actualités</h2></div><span class="section-note">Les informations dédiées à Free Distributions</span></div>
-      <div class="empty-state"><span class="empty-icon">✦</span><h3>Les actualités arrivent bientôt</h3><p>Retrouvez ici les informations, prises de position et communications de FO Free Distributions.</p></div>
+      <div id="articles-list" aria-live="polite">
+        <div class="empty-state"><span class="empty-icon">✦</span><h3>Chargement des actualités…</h3><p>Nous récupérons les dernières publications.</p></div>
+      </div>
     </section>
 
     <section class="section" id="revendications">
@@ -96,3 +98,40 @@ menu.querySelectorAll('a').forEach(link => link.addEventListener('click', () => 
   menu.classList.remove('is-open');
   toggle.setAttribute('aria-expanded', 'false');
 }));
+
+// Public articles are served by the Worker; draft and archived content never reaches this page.
+const articlesList = document.querySelector('#articles-list');
+const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+}[char]));
+
+async function loadArticles() {
+  try {
+    const response = await fetch('/api/articles', { headers: { Accept: 'application/json' } });
+    if (!response.ok) throw new Error('Articles indisponibles');
+    const data = await response.json();
+    const articles = Array.isArray(data.articles) ? data.articles : [];
+
+    if (!articles.length) {
+      articlesList.innerHTML = `<div class="empty-state"><span class="empty-icon">✦</span><h3>Les actualités arrivent bientôt</h3><p>Retrouvez ici les informations, prises de position et communications de FO Free Distributions.</p></div>`;
+      return;
+    }
+
+    articlesList.innerHTML = `<div class="article-grid">${articles.map(article => {
+      const date = article.published_at
+        ? new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(new Date(article.published_at))
+        : '';
+      return `<article class="article-card">
+        <span class="article-category">${escapeHtml(article.category)}</span>
+        <h3>${escapeHtml(article.title)}</h3>
+        ${article.excerpt ? `<p>${escapeHtml(article.excerpt)}</p>` : ''}
+        ${date ? `<time datetime="${escapeHtml(article.published_at)}">${escapeHtml(date)}</time>` : ''}
+      </article>`;
+    }).join('')}</div>`;
+  } catch (error) {
+    console.error('Chargement des actualités impossible:', error);
+    articlesList.innerHTML = `<div class="empty-state"><h3>Actualités momentanément indisponibles</h3><p>Merci de réessayer dans quelques instants.</p></div>`;
+  }
+}
+
+loadArticles();
