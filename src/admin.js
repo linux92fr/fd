@@ -218,12 +218,25 @@ async function articlesPage() {
 }
 async function messages() {
   try {
-    const { messages: items = [] } = await call('/api/admin/messages');
+    const { messages: items = [], permissions = {} } = await call('/api/admin/messages');
     const statusLabels = { new: 'Nouveau', in_progress: 'En cours', resolved: 'Traité', archived: 'Archivé' };
-    frame('<div class="admin-title-row"><div><span class="eyebrow">Espace de contact</span><h1>Messages reçus</h1><p>Les messages envoyés depuis le formulaire de contact du site.</p></div><button id="logout" class="button button-outline-dark">Déconnexion</button></div><section class="admin-panel"><div class="admin-toolbar"><h2>' + items.length + ' message(s)</h2><div class="admin-form-actions"><button id="back-articles" class="button button-outline-dark">← Articles</button><button id="refresh-messages" class="button button-outline-dark">Actualiser</button></div></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Reçu le</th><th>Expéditeur</th><th>Objet et message</th><th>Suivi</th></tr></thead><tbody>' + (items.length ? items.map(m => '<tr><td>' + esc(new Date(m.received_at).toLocaleString('fr-FR')) + '</td><td><b>' + esc(m.name || 'Nom non renseigné') + '</b><small>' + esc(m.email) + '</small></td><td><details><summary>' + esc(m.subject) + '</summary><p style="white-space:pre-wrap;max-width:520px">' + esc(m.message) + '</p><a href="mailto:' + encodeURIComponent(m.email) + '?subject=' + encodeURIComponent('Re: ' + m.subject) + '">Répondre par e-mail</a></details></td><td><select class="message-status" data-id="' + esc(m.id) + '" aria-label="Statut du message"><option value="new"' + (m.status === 'new' ? ' selected' : '') + '>Nouveau</option><option value="in_progress"' + (m.status === 'in_progress' ? ' selected' : '') + '>En cours</option><option value="resolved"' + (m.status === 'resolved' ? ' selected' : '') + '>Traité</option><option value="archived"' + (m.status === 'archived' ? ' selected' : '') + '>Archivé</option></select></td></tr>').join('') : '<tr><td colspan="4">Aucun message reçu pour le moment.</td></tr>') + '</tbody></table></div><p class="admin-message" id="messages-status" role="status"></p></section>');
+    frame('<div class="admin-title-row"><div><span class="eyebrow">Espace de contact</span><h1>Messages reçus</h1><p>Les messages envoyés depuis le formulaire de contact du site.</p></div><button id="logout" class="button button-outline-dark">Déconnexion</button></div><section class="admin-panel"><div class="admin-toolbar"><h2>' + items.length + ' message(s)</h2><div class="admin-form-actions"><button id="back-articles" class="button button-outline-dark">← Articles</button><button id="refresh-messages" class="button button-outline-dark">Actualiser</button></div></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Reçu le</th><th>Expéditeur</th><th>Objet et message</th><th>Suivi</th></tr></thead><tbody>' + (items.length ? items.map(m => '<tr><td>' + esc(new Date(m.received_at).toLocaleString('fr-FR')) + '</td><td><b>' + esc(m.name || 'Nom non renseigné') + '</b><small>' + esc(m.email) + '</small></td><td><details><summary>' + esc(m.subject) + '</summary><p style="white-space:pre-wrap;max-width:520px">' + esc(m.message) + '</p><a href="mailto:' + encodeURIComponent(m.email) + '?subject=' + encodeURIComponent('Re: ' + m.subject) + '">Répondre par e-mail</a></details></td><td><select class="message-status" data-id="' + esc(m.id) + '" aria-label="Statut du message"><option value="new"' + (m.status === 'new' ? ' selected' : '') + '>Nouveau</option><option value="in_progress"' + (m.status === 'in_progress' ? ' selected' : '') + '>En cours</option><option value="resolved"' + (m.status === 'resolved' ? ' selected' : '') + '>Traité</option><option value="archived"' + (m.status === 'archived' ? ' selected' : '') + '>Archivé</option></select>' + (permissions.canDelete ? ' <button type="button" class="text-button message-delete" data-id="' + esc(m.id) + '">Supprimer</button>' : '') + '</td></tr>').join('') : '<tr><td colspan="4">Aucun message reçu pour le moment.</td></tr>') + '</tbody></table></div><p class="admin-message" id="messages-status" role="status"></p></section>');
     root.querySelector('#logout').onclick = async () => { await auth.signOut(); login('Vous êtes déconnecté.'); };
     root.querySelector('#back-articles').onclick = () => dashboard();
     root.querySelector('#refresh-messages').onclick = () => messages();
+    root.querySelectorAll('.message-delete').forEach(button => {
+      button.addEventListener('click', async () => {
+        if (!window.confirm('Supprimer définitivement ce message ? Cette action est irréversible.')) return;
+        button.disabled = true;
+        try {
+          await call('/api/admin/messages/' + encodeURIComponent(button.dataset.id), { method: 'DELETE' });
+          await messages();
+        } catch (err) {
+          root.querySelector('#messages-status').textContent = 'Suppression impossible : ' + err.message;
+          button.disabled = false;
+        }
+      });
+    });
     root.querySelectorAll('.message-status').forEach(select => {
       select.addEventListener('change', async () => {
         const previous = select.dataset.previous || select.value;
