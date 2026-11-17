@@ -15,5 +15,8 @@
   "devDependencies": {
     "vite": "^6.4.1",
     "wrangler": "^4.163.0"
+  },
+  "overrides": {
+    "rollup": "4.68.4"
   }
 }
