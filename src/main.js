@@ -1,5 +1,26 @@
 import './style.css';
 
+function renderArticleMarkup(source) {
+  const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[char]));
+  const inline = value => escape(value)
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>');
+  const blocks = String(source || '').trim().split(/\n\s*\n/).filter(Boolean);
+  return blocks.map(block => {
+    const lines = block.split('\n').map(line => line.trim()).filter(Boolean);
+    if (lines.every(line => /^[-*]\s+/.test(line))) return '<ul>' + lines.map(line => '<li>' + inline(line.replace(/^[-*]\s+/, '')) + '</li>').join('') + '</ul>';
+    if (lines.every(line => /^\d+[.)]\s+/.test(line))) return '<ol>' + lines.map(line => '<li>' + inline(line.replace(/^\d+[.)]\s+/, '')) + '</li>').join('') + '</ol>';
+    if (lines.every(line => /^>\s?/.test(line))) return '<blockquote>' + lines.map(line => inline(line.replace(/^>\s?/, ''))).join('<br>') + '</blockquote>';
+    if (lines.length === 1 && /^###\s+/.test(lines[0])) return '<h3>' + inline(lines[0].replace(/^###\s+/, '')) + '</h3>';
+    if (lines.length === 1 && /^##\s+/.test(lines[0])) return '<h2>' + inline(lines[0].replace(/^##\s+/, '')) + '</h2>';
+    if (lines.length === 1 && /^#\s+/.test(lines[0])) return '<h2>' + inline(lines[0].replace(/^#\s+/, '')) + '</h2>';
+    return '<p>' + lines.map(inline).join('<br>') + '</p>';
+  }).join('');
+}
+
 // Floating return-to-top control, shared by public pages.
 function installBackToTop() {
   const button = document.createElement('button');
@@ -123,7 +144,7 @@ if (contactForm) {
       if (!response.ok || !data.article) throw new Error(response.status === 404 ? 'Cet article est introuvable ou n’est plus publié.' : 'Impossible de charger cet article pour le moment.');
       const article = data.article;
       const date = article.published_at ? new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(new Date(article.published_at)) : '';
-      const paragraphs = String(article.content || '').split(/\n\s*\n/).filter(Boolean).map(block => `<p>${escapeArticle(block).replace(/\n/g, '<br>')}</p>`).join('');
+      const paragraphs = renderArticleMarkup(article.content);
       target.innerHTML = `
         <article class="article-detail">
           <span class="eyebrow">${escapeArticle(article.category || 'Actualités')}</span>
