@@ -139,14 +139,27 @@ document.querySelector('#app').innerHTML = `
       </div>
     </section>
 
-    <section class="section" id="revendications">
-      <span class="eyebrow">Faire entendre votre voix</span><h2>Nos priorités</h2>
-      <div class="cards">
-        <article class="info-card"><span class="card-number">01</span><h3>Rémunération</h3><p>Salaires, primes, commissions et reconnaissance du travail réalisé en boutique.</p></article>
-        <article class="info-card"><span class="card-number">02</span><h3>Conditions de travail</h3><p>Organisation des équipes, horaires, charge de travail et moyens mis à disposition.</p></article>
-        <article class="info-card"><span class="card-number">03</span><h3>Formation & évolution</h3><p>Accompagnement des compétences, parcours professionnels et perspectives d’évolution.</p></article>
+    <section class="section claims-section" id="revendications">
+      <div class="section-heading">
+        <div><span class="eyebrow">Élections professionnelles · FO Free Distributions</span><h2>Nos revendications</h2></div>
+        <span class="section-note">Un programme construit autour de vos attentes</span>
       </div>
-      <p class="disclaimer">Ces thèmes constituent les axes de présentation du site. Les revendications officielles seront publiées après validation par les représentants FO.</p>
+      <p class="section-lead">Notre ambition : obtenir des avancées concrètes sur les salaires, les commissions, les conditions de travail et la reconnaissance des équipes en boutique. Voici les engagements que FO souhaite porter avec vous.</p>
+      <div class="claims-grid">
+        <article class="claim-card"><span class="claim-icon" aria-hidden="true">€</span><span class="card-number">01 · POUVOIR D'ACHAT</span><h3>Rémunération juste</h3><ul><li>Augmentations générales et revalorisation des salaires fixes.</li><li>Reconnaissance de l'ancienneté et de l'expérience.</li><li>Primes et commissions transparentes, compréhensibles et vérifiables.</li><li>Une rémunération qui ne repose pas uniquement sur des objectifs commerciaux.</li></ul></article>
+        <article class="claim-card"><span class="claim-icon" aria-hidden="true">↗</span><span class="card-number">02 · COMMISSIONS</span><h3>Des objectifs atteignables</h3><ul><li>Des objectifs adaptés à la fréquentation et à la réalité de chaque boutique.</li><li>Des règles de calcul des commissions claires et stables.</li><li>La prise en compte du travail collectif et des missions réellement effectuées.</li><li>La fin des changements imprévisibles en cours de période.</li></ul></article>
+        <article class="claim-card"><span class="claim-icon" aria-hidden="true">＋</span><span class="card-number">03 · EFFECTIFS</span><h3>De meilleures conditions de travail</h3><ul><li>Des effectifs suffisants pour accueillir les clients dans de bonnes conditions.</li><li>Une meilleure anticipation et un remplacement des absences.</li><li>Des pauses respectées et des moyens matériels adaptés.</li><li>La prévention de la surcharge de travail et des risques psychosociaux.</li></ul></article>
+        <article class="claim-card"><span class="claim-icon" aria-hidden="true">◷</span><span class="card-number">04 · ORGANISATION</span><h3>Des horaires plus prévisibles</h3><ul><li>Des plannings communiqués suffisamment à l'avance.</li><li>Une meilleure stabilité des horaires et des changements encadrés.</li><li>Une répartition équitable des ouvertures, fermetures et week-ends.</li><li>Une meilleure prise en compte de la vie personnelle et familiale.</li></ul></article>
+        <article class="claim-card"><span class="claim-icon" aria-hidden="true">↗</span><span class="card-number">05 · PARCOURS</span><h3>Formation et évolution</h3><ul><li>Un accès équitable à la formation pour toutes et tous.</li><li>Des formations régulières sur les produits, services et outils.</li><li>Des parcours professionnels et critères d'évolution transparents.</li><li>La reconnaissance des compétences acquises sur le terrain.</li></ul></article>
+        <article class="claim-card"><span class="claim-icon" aria-hidden="true">◎</span><span class="card-number">06 · RESPECT</span><h3>Management et reconnaissance</h3><ul><li>Un management fondé sur le respect, l'écoute et le dialogue.</li><li>La prévention des pratiques dévalorisantes et des pressions excessives.</li><li>Une reconnaissance du travail réellement accompli.</li><li>Des moyens accessibles pour signaler et traiter les difficultés.</li></ul></article>
+        <article class="claim-card"><span class="claim-icon" aria-hidden="true">♡</span><span class="card-number">07 · SANTÉ AU TRAVAIL</span><h3>Protéger la santé de chacun</h3><ul><li>Une prévention effective des risques professionnels.</li><li>Une meilleure prise en compte de la santé physique et mentale.</li><li>Des espaces de travail adaptés et sécurisés.</li><li>Un suivi régulier des conditions de travail avec les représentants du personnel.</li></ul></article>
+      </div>
+      <div class="claims-commitment">
+        <span class="eyebrow">Notre engagement</span><h3>Des revendications, des actes et de la transparence.</h3>
+        <p>FO s'engage à vous écouter, porter vos demandes auprès de la direction, défendre vos intérêts et vous informer régulièrement des avancées comme des désaccords. Vos élus doivent rendre compte de leur action.</p>
+        <a class="button button-red" href="/contact">Échanger avec l'équipe FO <span>→</span></a>
+      </div>
+      <p class="disclaimer">Ces propositions constituent la base du programme revendicatif présenté aux salariés. Les mesures chiffrées et les priorités définitives seront précisées avec les équipes et les candidats FO.</p>
     </section>
 
     <section class="section light-section" id="droits">
