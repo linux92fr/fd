@@ -134,13 +134,14 @@ function passwordReset() {
 async function dashboard() {
   try {
     const { overview = {} } = await call('/api/admin/overview');
-    frame('<div class="admin-title-row"><div><span class="eyebrow">Espace sécurisé FO</span><h1>Tableau de bord</h1><p>Vue d’ensemble de l’activité du site et accès rapide aux outils de gestion.</p></div><button id="logout" class="button button-outline-dark">Déconnexion</button></div><section class="admin-panel"><div class="admin-toolbar"><h2>Vue d’ensemble</h2><button id="refresh-overview" class="button button-outline-dark">Actualiser</button></div><div class="admin-stats-grid"><article class="admin-stat"><span>Articles</span><strong>' + Number(overview.articles_total || 0) + '</strong><small>' + Number(overview.articles_published || 0) + ' publiés · ' + Number(overview.articles_draft || 0) + ' brouillons</small></article><article class="admin-stat"><span>Messages reçus</span><strong>' + Number(overview.messages_total || 0) + '</strong><small>' + Number(overview.messages_new || 0) + ' nouveaux · ' + Number(overview.messages_in_progress || 0) + ' en cours</small></article><article class="admin-stat"><span>Messages traités</span><strong>' + Number(overview.messages_resolved || 0) + '</strong><small>Demandes marquées comme traitées</small></article></div></section><section class="admin-panel"><div class="admin-toolbar"><h2>Accès rapides</h2></div><div class="admin-quick-links"><button id="open-articles" class="button button-red">Gérer les articles</button><button id="open-messages" class="button button-outline-dark">Messages reçus</button><button id="open-survey" class="button button-outline-dark">Bilan du questionnaire</button><button id="open-media" class="button button-outline-dark">Médiathèque</button></div><p class="admin-help">Le bilan du questionnaire reste dans son espace sécurisé dédié. Les médias et les autres réglages seront ajoutés progressivement.</p></section>');
+    frame('<div class="admin-title-row"><div><span class="eyebrow">Espace sécurisé FO</span><h1>Tableau de bord</h1><p>Vue d’ensemble de l’activité du site et accès rapide aux outils de gestion.</p></div><button id="logout" class="button button-outline-dark">Déconnexion</button></div><section class="admin-panel"><div class="admin-toolbar"><h2>Vue d’ensemble</h2><button id="refresh-overview" class="button button-outline-dark">Actualiser</button></div><div class="admin-stats-grid"><article class="admin-stat"><span>Articles</span><strong>' + Number(overview.articles_total || 0) + '</strong><small>' + Number(overview.articles_published || 0) + ' publiés · ' + Number(overview.articles_draft || 0) + ' brouillons</small></article><article class="admin-stat"><span>Messages reçus</span><strong>' + Number(overview.messages_total || 0) + '</strong><small>' + Number(overview.messages_new || 0) + ' nouveaux · ' + Number(overview.messages_in_progress || 0) + ' en cours</small></article><article class="admin-stat"><span>Messages traités</span><strong>' + Number(overview.messages_resolved || 0) + '</strong><small>Demandes marquées comme traitées</small></article></div></section><section class="admin-panel"><div class="admin-toolbar"><h2>Accès rapides</h2></div><div class="admin-quick-links"><button id="open-articles" class="button button-red">Gérer les articles</button><button id="open-messages" class="button button-outline-dark">Messages reçus</button><button id="open-survey" class="button button-outline-dark">Bilan du questionnaire</button><button id="open-media" class="button button-outline-dark">Médiathèque</button><button id="open-homepage" class="button button-outline-dark">Page d’accueil</button></div><p class="admin-help">Le bilan du questionnaire reste dans son espace sécurisé dédié. Les médias et les autres réglages seront ajoutés progressivement.</p></section>');
     root.querySelector('#logout').onclick = async () => { await auth.signOut(); login('Vous êtes déconnecté.'); };
     root.querySelector('#refresh-overview').onclick = () => dashboard();
     root.querySelector('#open-articles').onclick = () => articlesPage();
     root.querySelector('#open-messages').onclick = () => messages();
     root.querySelector('#open-survey').onclick = () => surveyPage();
     root.querySelector('#open-media').onclick = () => mediaPage();
+    root.querySelector('#open-homepage').onclick = () => homepagePage();
   } catch (err) { login('Impossible de charger le tableau de bord : ' + (err.message || 'ERREUR_INCONNUE') + '.'); }
 }
 async function surveyPage() {
@@ -171,6 +172,45 @@ async function surveyPage() {
       link.href=url;link.download='fd-questionnaire-reponses-anonymes.csv';link.click();URL.revokeObjectURL(url);
     };
   } catch (err) { login('Impossible de charger les résultats : '+(err.message||'ERREUR_INCONNUE')+'.'); }
+}
+
+async function homepagePage() {
+  try {
+    const { content = {} } = await call('/api/admin/homepage');
+    const fields = [
+      ['hero_eyebrow','Petit titre d’accueil'],['hero_title','Grand titre d’accueil'],['hero_text','Texte d’introduction'],
+      ['hero_primary_label','Bouton principal — texte'],['hero_primary_url','Bouton principal — lien'],
+      ['hero_secondary_label','Bouton secondaire — texte'],['hero_secondary_url','Bouton secondaire — lien'],
+      ['intro_eyebrow','Engagement — petit titre'],['intro_title','Engagement — titre'],['intro_text','Engagement — texte'],
+      ['news_eyebrow','Actualités — petit titre'],['news_title','Actualités — titre'],['news_note','Actualités — texte complémentaire'],
+      ['claims_eyebrow','Revendications — petit titre'],['claims_title','Revendications — titre'],['claims_lead','Revendications — introduction'],
+      ['rights_eyebrow','Droits — petit titre'],['rights_title','Droits — titre'],['rights_lead','Droits — introduction'],
+      ['survey_eyebrow','Questionnaire — petit titre'],['survey_title','Questionnaire — titre'],['survey_text','Questionnaire — introduction']
+    ];
+    frame('<div class="admin-title-row"><div><span class="eyebrow">Contenu du site</span><h1>Page d’accueil</h1><p>Modifiez les textes principaux affichés sur la page d’accueil. Les articles, revendications détaillées et questions du questionnaire restent gérés dans leurs espaces respectifs.</p></div><button id="logout" class="button button-outline-dark">Déconnexion</button></div><section class="admin-panel"><div class="admin-toolbar"><h2>Textes de la page d’accueil</h2><button id="back-dashboard" class="button button-outline-dark">← Tableau de bord</button></div><form id="homepage-form" class="admin-form-grid">' + fields.map(([key,label]) => '<label>' + esc(label) + (key.endsWith('_text') || key.endsWith('_lead') || key.endsWith('_title') ? '<textarea name="' + key + '" rows="' + (key.endsWith('_title') ? '2' : '4') + '">' + esc(content[key] || '') + '</textarea>' : '<input name="' + key + '" value="' + esc(content[key] || '') + '">') + '</label>').join('') + '<div class="admin-form-actions"><button class="button button-red" type="submit">Enregistrer les modifications</button><button class="button button-outline-dark" type="button" id="reset-homepage">Recharger les textes actuels</button></div><p class="admin-message" id="homepage-status" role="status"></p></form></section>');
+    root.querySelector('#logout').onclick = async () => { await auth.signOut(); login('Vous êtes déconnecté.'); };
+    root.querySelector('#back-dashboard').onclick = () => dashboard();
+    root.querySelector('#reset-homepage').onclick = () => homepagePage();
+    root.querySelector('#homepage-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const button = form.querySelector('button[type="submit"]');
+      const content = {};
+      for (const [key] of fields) content[key] = form.elements.namedItem(key).value;
+      button.disabled = true;
+      const status = root.querySelector('#homepage-status');
+      status.textContent = 'Enregistrement…';
+      try {
+        await call('/api/admin/homepage', { method: 'PUT', body: JSON.stringify({ content }) });
+        status.textContent = 'Les textes de la page d’accueil ont été enregistrés.';
+      } catch (error) {
+        status.textContent = 'Enregistrement impossible : ' + error.message;
+      } finally { button.disabled = false; }
+    });
+  } catch (error) {
+    frame('<section class="admin-panel"><h1>Page d’accueil</h1><p class="admin-message">Chargement impossible : ' + esc(error.message) + '</p><button id="back-dashboard" class="button button-outline-dark">← Tableau de bord</button></section>');
+    root.querySelector('#back-dashboard').onclick = () => dashboard();
+  }
 }
 
 async function mediaPage() {
