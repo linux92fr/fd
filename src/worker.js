@@ -530,7 +530,7 @@ export default {
     if (url.pathname.startsWith("/api/admin/")) {
       try { return await handleAdmin(request, env, url, origin); }
       catch (error) {
-        console.error("Admin API failed:", error.message);
+        console.error("Admin API failed:", error?.name || "Error", error?.code || "NO_CODE", String(error?.message || "unknown").slice(0, 240));
         return json({ error: "ADMIN_API_UNAVAILABLE" }, 503, origin);
       }
     }
