@@ -319,7 +319,7 @@ async function handleAdmin(request, env, url, origin) {
     return json({ messages: result.rows }, 200, origin);
   }
 
-  const messageMatch = url.pathname.match(/^\\/api\\/admin\\/messages\\/(\\d+)$/);
+  const messageMatch = url.pathname.match(/^\/api\/admin\/messages\/(\d+)$/);
   if (messageMatch && request.method === "PATCH") {
     let body;
     try { body = await request.json(); } catch { return json({ error: "INVALID_JSON" }, 400, origin); }
