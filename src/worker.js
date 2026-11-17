@@ -312,6 +312,40 @@ async function handleAdmin(request, env, url, origin) {
   if (access.denied) return json({ error: access.denied }, 401, origin);
   const admin = access.admin;
 
+  if (url.pathname === "/api/admin/media" && request.method === "GET") {
+    if (!env.MEDIA) return json({ error: "MEDIA_STORAGE_UNAVAILABLE" }, 503, origin);
+    const listed = await env.MEDIA.list({ prefix: "uploads/", limit: 200 });
+    const media = listed.objects.map(object => ({
+      key: object.key, size: object.size, uploaded: object.uploaded,
+      url: "/media/" + object.key.split("/").map(encodeURIComponent).join("/")
+    }));
+    return json({ media, truncated: listed.truncated }, 200, origin);
+  }
+
+  if (url.pathname === "/api/admin/media" && request.method === "POST") {
+    if (!env.MEDIA) return json({ error: "MEDIA_STORAGE_UNAVAILABLE" }, 503, origin);
+    const length = Number(request.headers.get("content-length") || 0);
+    if (length > 9 * 1024 * 1024) return json({ error: "FILE_TOO_LARGE" }, 413, origin);
+    let form;
+    try { form = await request.formData(); } catch { return json({ error: "INVALID_UPLOAD" }, 400, origin); }
+    const file = form.get("file");
+    const allowed = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+    if (!(file instanceof File) || !allowed.has(file.type)) return json({ error: "INVALID_IMAGE_TYPE" }, 415, origin);
+    if (file.size < 1 || file.size > 8 * 1024 * 1024) return json({ error: "FILE_TOO_LARGE" }, 413, origin);
+    const ext = ({ "image/jpeg":"jpg", "image/png":"png", "image/webp":"webp", "image/gif":"gif" })[file.type];
+    const key = "uploads/" + new Date().toISOString().slice(0,10) + "/" + crypto.randomUUID() + "." + ext;
+    await env.MEDIA.put(key, file.stream(), { httpMetadata: { contentType: file.type, cacheControl: "public, max-age=31536000, immutable" }, customMetadata: { originalName: String(file.name || "image").slice(0,200) } });
+    return json({ ok: true, key, url: "/media/" + key.split("/").map(encodeURIComponent).join("/") }, 201, origin);
+  }
+
+  const mediaDeleteMatch = url.pathname.match(/^\\/api\\/admin\\/media\\/(.+)$/);
+  if (mediaDeleteMatch && request.method === "DELETE") {
+    const key = decodeURIComponent(mediaDeleteMatch[1]);
+    if (!key.startsWith("uploads/") || key.includes("..")) return json({ error: "INVALID_MEDIA_KEY" }, 400, origin);
+    await env.MEDIA.delete(key);
+    return json({ ok: true }, 200, origin);
+  }
+
   if (url.pathname === "/api/admin/secure-survey-results" && request.method === "GET") {
     if (!env.SURVEYS_DB) return json({ error: "SURVEY_STORAGE_UNAVAILABLE" }, 503, origin);
     const result = await env.SURVEYS_DB.prepare("SELECT created_at, answers_json FROM survey_responses ORDER BY created_at DESC").all();
@@ -440,6 +474,21 @@ export default {
           "vary": "Origin",
         },
       });
+    }
+
+    if (url.pathname.startsWith("/media/") && request.method === "GET") {
+      if (!env.MEDIA) return new Response("Not found", { status: 404 });
+      let key;
+      try { key = url.pathname.slice("/media/".length).split("/").map(decodeURIComponent).join("/"); }
+      catch { return new Response("Bad request", { status: 400 }); }
+      if (!key.startsWith("uploads/") || key.includes("..")) return new Response("Not found", { status: 404 });
+      const object = await env.MEDIA.get(key);
+      if (!object) return new Response("Not found", { status: 404 });
+      const headers = new Headers();
+      object.writeHttpMetadata(headers);
+      headers.set("etag", object.httpEtag);
+      headers.set("x-content-type-options", "nosniff");
+      return new Response(object.body, { headers });
     }
 
     if (url.pathname === "/api/health" && request.method === "GET") {
