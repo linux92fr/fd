@@ -98,6 +98,8 @@ if (contactForm) {
     }
   });
 }
+} else if (/^\/(mentions-legales|confidentialite|cookies)\/?$/.test(location.pathname)) {
+  import('./legal.js');
 } else {
 const nav = [
   ['Accueil', '#accueil'],
@@ -251,7 +253,7 @@ document.querySelector('#app').innerHTML = `
     </section>
   </main>
 
-  <footer class="site-footer"><a class="footer-brand" href="#accueil"><strong>FO</strong> FOCOM · Free Distributions</a><span>Un site dédié aux salariés de Free Distributions</span><a href="#accueil">Retour en haut ↑</a></footer>
+  <footer class="site-footer"><a class="footer-brand" href="#accueil"><strong>FO</strong> FOCOM · Free Distributions</a><span>Un site dédié aux salariés de Free Distributions</span><nav class="footer-legal"><a href="/mentions-legales">Mentions légales</a><a href="/confidentialite">Confidentialité</a><a href="/cookies">Cookies</a></nav><a href="#accueil">Retour en haut ↑</a></footer>
 `;
 
 installBackToTop();
