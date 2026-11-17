@@ -184,7 +184,7 @@ export default {
     if (url.pathname.startsWith("/api/")) return json({ error: "NOT_FOUND" }, 404, origin);
     // Explicitly serve the SPA entry point for the admin route.
     if (url.pathname === "/admin" || url.pathname === "/admin/") {
-      return env.ASSETS.fetch(new Request(new URL("/index.html", request.url), request));
+      return env.ASSETS.fetch(new Request(new URL("/index.html", request.url).toString(), { method: "GET", headers: request.headers }));
     }
     return env.ASSETS.fetch(request);
   },
