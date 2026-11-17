@@ -338,7 +338,7 @@ async function handleAdmin(request, env, url, origin) {
     return json({ ok: true, key, url: "/media/" + key.split("/").map(encodeURIComponent).join("/") }, 201, origin);
   }
 
-  const mediaDeleteMatch = url.pathname.match(/^\\/api\\/admin\\/media\\/(.+)$/);
+  const mediaDeleteMatch = url.pathname.match(/^\/api\/admin\/media\/(.+)$/);
   if (mediaDeleteMatch && request.method === "DELETE") {
     const key = decodeURIComponent(mediaDeleteMatch[1]);
     if (!key.startsWith("uploads/") || key.includes("..")) return json({ error: "INVALID_MEDIA_KEY" }, 400, origin);
