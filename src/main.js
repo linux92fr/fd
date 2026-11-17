@@ -123,7 +123,7 @@ if (contactForm) {
       if (!response.ok || !data.article) throw new Error(response.status === 404 ? 'Cet article est introuvable ou n’est plus publié.' : 'Impossible de charger cet article pour le moment.');
       const article = data.article;
       const date = article.published_at ? new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(new Date(article.published_at)) : '';
-      const paragraphs = String(article.content || '').split(/\\n\\s*\\n/).filter(Boolean).map(block => `<p>${escapeArticle(block).replace(/\\n/g, '<br>')}</p>`).join('');
+      const paragraphs = String(article.content || '').split(/\n\s*\n/).filter(Boolean).map(block => `<p>${escapeArticle(block).replace(/\n/g, '<br>')}</p>`).join('');
       target.innerHTML = `
         <article class="article-detail">
           <span class="eyebrow">${escapeArticle(article.category || 'Actualités')}</span>
