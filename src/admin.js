@@ -161,10 +161,11 @@ async function mediaPage() {
     root.querySelector('#refresh-media').onclick = () => mediaPage();
     root.querySelector('#media-upload').onsubmit = async e => {
       e.preventDefault();
-      const button=e.currentTarget.querySelector('button'); button.disabled=true;
+      const uploadForm = e.currentTarget;
+      const button=uploadForm.querySelector('button'); button.disabled=true;
       try {
         const jwt=await token();
-        const form=new FormData(e.currentTarget);
+        const form=new FormData(uploadForm);
         const response=await fetch('/api/admin/media',{method:'POST',headers:{Authorization:'Bearer '+jwt},body:form});
         const data=await response.json().catch(()=>({}));
         if(!response.ok) throw new Error(data.error||'Import impossible');
