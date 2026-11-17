@@ -267,3 +267,6 @@
 .survey-admin-comment{padding:16px;background:#f7f7f9;border:1px solid var(--line);border-radius:8px;white-space:pre-wrap;line-height:1.6}
 @media(max-width:620px){.survey-admin-bar{grid-template-columns:1fr 1fr 28px}.survey-admin-bar>span{grid-column:1/-1}}
 @media print{.admin-header,.admin-title-row button,.admin-form-actions,.admin-help{display:none!important}.admin-main{max-width:none;padding:0}.admin-panel{break-inside:avoid;box-shadow:none}}
+
+
+.media-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:1rem;margin-top:1rem}.media-item{border:1px solid #e2e2e2;border-radius:12px;overflow:hidden;background:#fff}.media-item img{display:block;width:100%;height:150px;object-fit:cover;background:#f3f3f3}.media-item>div{padding:.8rem}.media-item small{display:block;overflow-wrap:anywhere}.media-item p{margin:.35rem 0;color:#666;font-size:.85rem}.media-item .button{font-size:.82rem;padding:.55rem .7rem}.admin-form-actions input[type=file]{max-width:100%}@media(max-width:600px){.media-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.media-item img{height:110px}.media-item .button{width:100%;margin:.2rem 0}}
