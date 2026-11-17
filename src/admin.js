@@ -120,10 +120,46 @@ async function dashboard() {
 }
 function editor(a = {}) {
   const el = root.querySelector('#editor'); el.hidden = false;
-  el.innerHTML = '<div class="admin-toolbar"><h2>' + (a.id ? 'Modifier' : 'Nouvel') + ' article</h2><button id="close" class="text-button">Fermer</button></div><form id="article-form" class="article-form"><input type="hidden" name="id" value="' + esc(a.id || '') + '"><label>Titre<input name="title" maxlength="180" required value="' + esc(a.title || '') + '"></label><label>Slug<input name="slug" maxlength="180" value="' + esc(a.slug || '') + '"></label><label>Catégorie<input name="category" maxlength="80" value="' + esc(a.category || 'Actualités') + '"></label><label>Résumé<textarea name="excerpt" maxlength="320" rows="2">' + esc(a.excerpt || '') + '</textarea></label><label>Contenu<textarea name="content" rows="10" required>' + esc(a.content || '') + '</textarea></label><label>Image (URL HTTPS)<input name="cover_image_url" type="url" value="' + esc(a.cover_image_url || '') + '"></label><div class="admin-form-actions"><button class="button button-outline-dark" name="status" value="draft">Enregistrer le brouillon</button><button class="button button-red" name="status" value="published">Publier</button>' + (a.id ? '<button type="button" id="archive" class="text-button">Archiver</button>' : '') + '</div><p class="admin-message" role="status"></p></form>';
+  el.innerHTML = '<div class="admin-toolbar"><h2>' + (a.id ? 'Modifier' : 'Nouvel') + ' article</h2><button id="close" class="text-button">Fermer</button></div><form id="article-form" class="article-form"><input type="hidden" name="id" value="' + esc(a.id || '') + '"><label>Titre<input name="title" maxlength="180" required value="' + esc(a.title || '') + '"></label><label>Slug<input name="slug" maxlength="180" value="' + esc(a.slug || '') + '"></label><label>Catégorie<input name="category" maxlength="80" value="' + esc(a.category || 'Actualités') + '"></label><label>Résumé<textarea name="excerpt" maxlength="320" rows="2">' + esc(a.excerpt || '') + '</textarea></label><label>Contenu<textarea name="content" rows="10" required>' + esc(a.content || '') + '</textarea></label><label>Image (URL HTTPS)<input name="cover_image_url" type="url" value="' + esc(a.cover_image_url || '') + '"></label><div class="admin-form-actions"><button type="button" id="preview-toggle" class="button button-outline-dark">Aperçu de l’article</button><button class="button button-outline-dark" name="status" value="draft">Enregistrer le brouillon</button><button class="button button-red" name="status" value="published">Publier</button>' + (a.id ? '<button type="button" id="archive" class="text-button">Archiver</button>' : '') + '</div><p class="admin-message" role="status"></p></form><section id="article-preview" class="article-preview" hidden aria-live="polite"><div class="preview-heading"><span class="eyebrow">Prévisualisation · non publiée</span><span class="preview-status">Visible uniquement ici</span></div><article class="preview-article"><img class="preview-cover" alt="" hidden><span class="preview-category"></span><h1 class="preview-title"></h1><p class="preview-excerpt"></p><div class="preview-content"></div></article></section>';
+  const form = el.querySelector('#article-form');
+  const preview = el.querySelector('#article-preview');
+  const fields = name => form.elements.namedItem(name);
+  const renderPreview = () => {
+    const title = fields('title').value.trim();
+    const content = fields('content').value.trim();
+    preview.querySelector('.preview-category').textContent = fields('category').value.trim() || 'Actualités';
+    preview.querySelector('.preview-title').textContent = title || 'Titre de votre article';
+    preview.querySelector('.preview-excerpt').textContent = fields('excerpt').value.trim();
+    preview.querySelector('.preview-excerpt').hidden = !fields('excerpt').value.trim();
+    const body = preview.querySelector('.preview-content');
+    body.replaceChildren();
+    content.split(/\\n\\s*\\n/).filter(Boolean).forEach(block => {
+      const p = document.createElement('p');
+      p.textContent = block.trim();
+      body.appendChild(p);
+    });
+    const image = preview.querySelector('.preview-cover');
+    const imageUrl = fields('cover_image_url').value.trim();
+    if (/^https:\\/\\//i.test(imageUrl)) {
+      image.src = imageUrl;
+      image.hidden = false;
+    } else {
+      image.removeAttribute('src');
+      image.hidden = true;
+    }
+  };
   el.querySelector('#close').onclick = () => { el.hidden = true; };
-  el.querySelector('#article-form').onsubmit = async e => {
-    e.preventDefault(); const form = e.currentTarget; const submit = e.submitter;
+  el.querySelector('#preview-toggle').onclick = event => {
+    preview.hidden = !preview.hidden;
+    event.currentTarget.textContent = preview.hidden ? 'Aperçu de l’article' : 'Masquer l’aperçu';
+    if (!preview.hidden) {
+      renderPreview();
+      preview.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+  form.addEventListener('input', () => { if (!preview.hidden) renderPreview(); });
+  form.onsubmit = async e => {
+    e.preventDefault(); const submit = e.submitter;
     const values = Object.fromEntries(new FormData(form).entries()); values.id = values.id ? Number(values.id) : null; values.status = submit.value;
     submit.disabled = true;
     try { await call('/api/admin/articles', { method: 'POST', body: JSON.stringify(values) }); await dashboard(); }
