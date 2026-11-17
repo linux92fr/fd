@@ -4,6 +4,13 @@
   "main": "src/worker.preview.js",
   "compatibility_date": "2026-11-17",
   "workers_dev": true,
+  "d1_databases": [
+    {
+      "binding": "SURVEYS_DB",
+      "database_name": "fd-surveys-preview",
+      "database_id": "768387ca-bfd2-40e6-9632-a19d07a6fd0d"
+    }
+  ],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
