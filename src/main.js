@@ -1,4 +1,20 @@
 import './style.css';
+
+// Floating return-to-top control, shared by public pages.
+function installBackToTop() {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'back-to-top';
+  button.setAttribute('aria-label', 'Revenir en haut de page');
+  button.title = 'Retour en haut';
+  button.innerHTML = '<span aria-hidden="true">↑</span><small>TOP</small>';
+  document.body.append(button);
+  const updateVisibility = () => button.classList.toggle('is-visible', window.scrollY > 320);
+  window.addEventListener('scroll', updateVisibility, { passive: true });
+  updateVisibility();
+  button.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+}
+
 if (/^\/admin\/?$/.test(location.pathname)) {
   import('./admin.js');
 } else if (/^\/contact\/?$/.test(location.pathname)) {
@@ -41,6 +57,8 @@ if (/^\/admin\/?$/.test(location.pathname)) {
     </main>
     <footer class="site-footer"><a class="footer-brand" href="/"><strong>FO</strong> FOCOM · Free Distributions</a><span>À l'écoute des salariés</span><a href="/">Retour à l'accueil ↑</a></footer>
   `;
+
+installBackToTop();
 
 // Contact form handler must be registered on the dedicated /contact route.
 const contactForm = document.querySelector('#fd-contact-form');
@@ -235,6 +253,8 @@ document.querySelector('#app').innerHTML = `
 
   <footer class="site-footer"><a class="footer-brand" href="#accueil"><strong>FO</strong> FOCOM · Free Distributions</a><span>Un site dédié aux salariés de Free Distributions</span><a href="#accueil">Retour en haut ↑</a></footer>
 `;
+
+installBackToTop();
 
 const toggle = document.querySelector('.menu-toggle');
 const menu = document.querySelector('.main-nav');
