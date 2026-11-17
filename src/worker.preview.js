@@ -195,7 +195,7 @@ function csv(){
  const headers=['Date de réception','Conditions de travail','Reconnaissance','Priorités','Commentaire'];
  const rowsOut=rows.map(x=>[x.created_at,x.answers.conditions,x.answers.recognition,(x.answers.priorities||[]).map(k=>labels[k]||k).join(' | '),x.answers.comment||'']);
  const quote=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
- const text=[headers,...rowsOut].map(row=>row.map(quote).join(';')).join('\r\n');
+ const text=[headers,...rowsOut].map(row=>row.map(quote).join(';')).join('\\r\\n');
  const blob=new Blob(['\ufeff'+text],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='fd-questionnaire-reponses-anonymes.csv';a.click();URL.revokeObjectURL(url);
 }
 $('#csv').onclick=csv;$('#pdf').onclick=()=>window.print();$('#refresh').onclick=load;load();
