@@ -1,5 +1,5 @@
 import './style.css';
-if (location.pathname === '/admin') {
+if (/^\/admin\/?$/.test(location.pathname)) {
   import('./admin.js');
 } else {
 const nav = [
