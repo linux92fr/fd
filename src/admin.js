@@ -112,11 +112,37 @@ function passwordReset() {
 async function dashboard() {
   try {
     const { articles = [] } = await call('/api/admin/articles');
-    frame('<div class="admin-title-row"><div><span class="eyebrow">Gestion du contenu</span><h1>Actualités</h1><p>Créer, modifier et publier les communications FO.</p></div><button id="logout" class="button button-outline-dark">Déconnexion</button></div><section class="admin-panel"><div class="admin-toolbar"><h2>Articles (' + articles.length + ')</h2><button id="new" class="button button-red">＋ Nouvel article</button></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Titre</th><th>Catégorie</th><th>Statut</th><th></th></tr></thead><tbody>' + (articles.length ? articles.map(a => '<tr><td><b>' + esc(a.title) + '</b><small>' + esc(a.slug) + '</small></td><td>' + esc(a.category) + '</td><td>' + esc(a.status) + '</td><td><button class="text-button edit" data-id="' + a.id + '">Modifier</button></td></tr>').join('') : '<tr><td colspan="4">Aucun article pour le moment.</td></tr>') + '</tbody></table></div></section><section id="editor" class="admin-panel" hidden></section>');
+    frame('<div class="admin-title-row"><div><span class="eyebrow">Gestion du contenu</span><h1>Actualités</h1><p>Créer, modifier et publier les communications FO.</p></div><button id="logout" class="button button-outline-dark">Déconnexion</button></div><section class="admin-panel"><div class="admin-toolbar"><h2>Articles (' + articles.length + ')</h2><div class="admin-form-actions"><button id="messages" class="button button-outline-dark">Messages reçus</button><button id="new" class="button button-red">＋ Nouvel article</button></div></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Titre</th><th>Catégorie</th><th>Statut</th><th></th></tr></thead><tbody>' + (articles.length ? articles.map(a => '<tr><td><b>' + esc(a.title) + '</b><small>' + esc(a.slug) + '</small></td><td>' + esc(a.category) + '</td><td>' + esc(a.status) + '</td><td><button class="text-button edit" data-id="' + a.id + '">Modifier</button></td></tr>').join('') : '<tr><td colspan="4">Aucun article pour le moment.</td></tr>') + '</tbody></table></div></section><section id="editor" class="admin-panel" hidden></section>');
     root.querySelector('#logout').onclick = async () => { await auth.signOut(); login('Vous êtes déconnecté.'); };
     root.querySelector('#new').onclick = () => editor();
+    root.querySelector('#messages').onclick = () => messages();
     root.querySelectorAll('.edit').forEach(b => b.onclick = () => editor(articles.find(a => String(a.id) === b.dataset.id)));
   } catch (err) { login('Diagnostic de connexion : ' + (err.message || 'ERREUR_INCONNUE') + '.'); }
+}
+async function messages() {
+  try {
+    const { messages: items = [] } = await call('/api/admin/messages');
+    const statusLabels = { new: 'Nouveau', in_progress: 'En cours', resolved: 'Traité', archived: 'Archivé' };
+    frame('<div class="admin-title-row"><div><span class="eyebrow">Espace de contact</span><h1>Messages reçus</h1><p>Les messages envoyés depuis le formulaire de contact du site.</p></div><button id="logout" class="button button-outline-dark">Déconnexion</button></div><section class="admin-panel"><div class="admin-toolbar"><h2>' + items.length + ' message(s)</h2><div class="admin-form-actions"><button id="back-articles" class="button button-outline-dark">← Articles</button><button id="refresh-messages" class="button button-outline-dark">Actualiser</button></div></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Reçu le</th><th>Expéditeur</th><th>Objet et message</th><th>Suivi</th></tr></thead><tbody>' + (items.length ? items.map(m => '<tr><td>' + esc(new Date(m.received_at).toLocaleString('fr-FR')) + '</td><td><b>' + esc(m.name || 'Nom non renseigné') + '</b><small>' + esc(m.email) + '</small></td><td><details><summary>' + esc(m.subject) + '</summary><p style="white-space:pre-wrap;max-width:520px">' + esc(m.message) + '</p><a href="mailto:' + encodeURIComponent(m.email) + '?subject=' + encodeURIComponent('Re: ' + m.subject) + '">Répondre par e-mail</a></details></td><td><select class="message-status" data-id="' + esc(m.id) + '" aria-label="Statut du message"><option value="new"' + (m.status === 'new' ? ' selected' : '') + '>Nouveau</option><option value="in_progress"' + (m.status === 'in_progress' ? ' selected' : '') + '>En cours</option><option value="resolved"' + (m.status === 'resolved' ? ' selected' : '') + '>Traité</option><option value="archived"' + (m.status === 'archived' ? ' selected' : '') + '>Archivé</option></select></td></tr>').join('') : '<tr><td colspan="4">Aucun message reçu pour le moment.</td></tr>') + '</tbody></table></div><p class="admin-message" id="messages-status" role="status"></p></section>');
+    root.querySelector('#logout').onclick = async () => { await auth.signOut(); login('Vous êtes déconnecté.'); };
+    root.querySelector('#back-articles').onclick = () => dashboard();
+    root.querySelector('#refresh-messages').onclick = () => messages();
+    root.querySelectorAll('.message-status').forEach(select => {
+      select.addEventListener('change', async () => {
+        const previous = select.dataset.previous || select.value;
+        select.disabled = true;
+        try {
+          await call('/api/admin/messages/' + encodeURIComponent(select.dataset.id), { method: 'PATCH', body: JSON.stringify({ status: select.value }) });
+          select.dataset.previous = select.value;
+          root.querySelector('#messages-status').textContent = 'Statut du message mis à jour.';
+        } catch (err) {
+          select.value = previous;
+          root.querySelector('#messages-status').textContent = 'Modification impossible : ' + err.message;
+        } finally { select.disabled = false; }
+      });
+      select.dataset.previous = select.value;
+    });
+  } catch (err) { login('Impossible de charger les messages : ' + (err.message || 'ERREUR_INCONNUE') + '.'); }
 }
 function editor(a = {}) {
   const el = root.querySelector('#editor'); el.hidden = false;
