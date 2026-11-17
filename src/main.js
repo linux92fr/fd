@@ -292,6 +292,7 @@ async function loadArticles() {
         ? new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(new Date(article.published_at))
         : '';
       return `<article class="article-card">
+        ${article.cover_image_url ? `<img class="article-card-image" src="${escapeHtml(article.cover_image_url)}" alt="" loading="lazy" decoding="async">` : ''}
         <span class="article-category">${escapeHtml(article.category)}</span>
         <h3>${escapeHtml(article.title)}</h3>
         ${article.excerpt ? `<p>${escapeHtml(article.excerpt)}</p>` : ''}
