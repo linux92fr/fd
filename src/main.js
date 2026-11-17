@@ -1,6 +1,37 @@
 import './style.css';
 if (/^\/admin\/?$/.test(location.pathname)) {
   import('./admin.js');
+} else if (/^\/contact\/?$/.test(location.pathname)) {
+  document.querySelector('#app').innerHTML = `
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="FO Free Distributions, accueil">
+        <span class="fo-mark">FO</span>
+        <span class="brand-copy"><strong>FOCOM</strong><b><em>Free</em> Distributions</b><small>Le syndicat des salariés de Free Distributions</small></span>
+      </a>
+      <a class="button button-outline" href="/">← Retour à l'accueil</a>
+    </header>
+    <main class="contact-page">
+      <section class="contact-page-hero">
+        <span class="eyebrow">FO Free Distributions</span>
+        <h1>Contactez <span>FO.</span></h1>
+        <p>Une question, une difficulté au travail, une suggestion ou besoin d'un échange ? L'équipe FO Free Distributions est à votre écoute.</p>
+      </section>
+      <section class="contact-page-card">
+        <div class="contact-icon" aria-hidden="true">✉</div>
+        <div>
+          <span class="eyebrow">Par courrier électronique</span>
+          <h2>Écrire à l'équipe FO</h2>
+          <p>Vous pouvez nous contacter directement par e-mail. Décrivez votre demande en évitant d'inclure des informations personnelles sensibles si elles ne sont pas nécessaires.</p>
+          <a class="button button-red" href="mailto:contact@focom-iliad.fr?subject=Contact%20FO%20Free%20Distributions">contact@focom-iliad.fr <span>→</span></a>
+        </div>
+      </section>
+      <section class="contact-page-note">
+        <h2>Vous souhaitez partager une préoccupation ?</h2>
+        <p>Vous pouvez également consulter le <a href="/#questionnaires">questionnaire destiné aux salariés</a> pour faire connaître vos attentes et vos priorités de manière anonyme.</p>
+      </section>
+    </main>
+    <footer class="site-footer"><a class="footer-brand" href="/"><strong>FO</strong> FOCOM · Free Distributions</a><span>À l'écoute des salariés</span><a href="/">Retour à l'accueil ↑</a></footer>
+  `;
 } else {
 const nav = [
   ['Accueil', '#accueil'],
@@ -8,7 +39,7 @@ const nav = [
   ['Nos revendications', '#revendications'],
   ['Vos droits', '#droits'],
   ['Questionnaires', '#questionnaires'],
-  ['Contact', '#contact'],
+  ['Contact', '/contact'],
 ];
 
 document.querySelector('#app').innerHTML = `
@@ -31,7 +62,7 @@ document.querySelector('#app').innerHTML = `
         <p>Un espace d’information, de dialogue et d’action syndicale dédié aux équipes de Free Distributions.</p>
         <div class="hero-actions">
           <a class="button button-red" href="#revendications">Nos revendications</a>
-          <a class="button button-outline" href="#contact">Nous contacter</a>
+          <a class="button button-outline" href="/contact">Nous contacter</a>
         </div>
       </div>
       <div class="hero-visual" aria-hidden="true">
@@ -73,7 +104,7 @@ document.querySelector('#app').innerHTML = `
     <section class="section light-section" id="droits">
       <div class="section-heading"><div><span class="eyebrow">Mieux connaître vos droits</span><h2>Vos droits au travail</h2></div></div>
       <p class="section-lead">Des repères pratiques pour comprendre vos droits et savoir vers qui vous tourner. Les contenus détaillés seront publiés prochainement.</p>
-      <a class="text-link" href="#contact">Une question ? Contactez FO <span>→</span></a>
+      <a class="text-link" href="/contact">Une question ? Contactez FO <span>→</span></a>
     </section>
 
     <section class="section light-section survey-section" id="questionnaires">
@@ -137,7 +168,7 @@ document.querySelector('#app').innerHTML = `
 
     <section class="contact-section" id="contact">
       <div><span class="eyebrow">Restons en contact</span><h2>Votre voix compte.</h2><p>Une question, une difficulté ou une idée à partager ? L’équipe FO Free Distributions sera à votre écoute.</p></div>
-      <a class="button button-white" href="mailto:contact@focom-iliad.fr?subject=FO%20Free%20Distributions">Écrire à FO <span>→</span></a>
+      <a class="button button-white" href="/contact">Nous contacter <span>→</span></a>
     </section>
   </main>
 
