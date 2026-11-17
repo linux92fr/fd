@@ -325,6 +325,7 @@ async function handleAdmin(request, env, url, origin) {
     for (const [key, fallback] of Object.entries(HOMEPAGE_DEFAULTS)) {
       const value = body.content[key] === undefined ? fallback : String(body.content[key]);
       if (value.length > 2000) return json({ error: "FIELD_TOO_LONG", field: key }, 400, origin);
+      if ((key === "hero_primary_url" || key === "hero_secondary_url") && !(/^(https:\/\/|\/[a-z0-9#?/_-]*|#[a-z0-9_-]+)$/i.test(value))) return json({ error: "INVALID_LINK", field: key }, 400, origin);
       content[key] = value;
     }
     await withDatabase(env, db => db.query(
