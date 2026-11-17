@@ -133,14 +133,14 @@ function editor(a = {}) {
     preview.querySelector('.preview-excerpt').hidden = !fields('excerpt').value.trim();
     const body = preview.querySelector('.preview-content');
     body.replaceChildren();
-    content.split(/\\n\\s*\\n/).filter(Boolean).forEach(block => {
+    content.split(/\n\s*\n/).filter(Boolean).forEach(block => {
       const p = document.createElement('p');
       p.textContent = block.trim();
       body.appendChild(p);
     });
     const image = preview.querySelector('.preview-cover');
     const imageUrl = fields('cover_image_url').value.trim();
-    if (/^https:\\/\\//i.test(imageUrl)) {
+    if (/^https:\/\//i.test(imageUrl)) {
       image.src = imageUrl;
       image.hidden = false;
     } else {
