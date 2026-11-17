@@ -76,7 +76,7 @@ if (/^\/admin\/?$/.test(location.pathname)) {
         <p>Vous pouvez également consulter le <a href="/#questionnaires">questionnaire destiné aux salariés</a> pour faire connaître vos attentes et vos priorités de manière anonyme.</p>
       </section>
     </main>
-    <footer class="site-footer"><a class="footer-brand" href="/"><img class="footer-logo" src="/logo-focom-fond-rouge.png" alt="FOCOM"><span>FOCOM · Free Distributions</span></a><span>À l'écoute des salariés</span><a href="/">Retour à l'accueil ↑</a></footer>
+    <footer class="site-footer"><a class="footer-brand" href="/"><img class="footer-logo" src="/logo-focom-fond-rouge.png" alt="FOCOM"><span data-homepage="hero_eyebrow">FOCOM · Free Distributions</span></a><span>À l'écoute des salariés</span><a href="/">Retour à l'accueil ↑</a></footer>
   `;
 
 installBackToTop();
@@ -147,7 +147,7 @@ if (contactForm) {
       const paragraphs = renderArticleMarkup(article.content);
       target.innerHTML = `
         <article class="article-detail">
-          <span class="eyebrow">${escapeArticle(article.category || 'Actualités')}</span>
+          <span class="eyebrow" data-homepage="news_title">${escapeArticle(article.category || 'Actualités')}</span>
           <h1>${escapeArticle(article.title)}</h1>
           ${date ? `<time datetime="${escapeArticle(article.published_at)}">${escapeArticle(date)}</time>` : ''}
           ${article.cover_image_url ? `<img class="article-detail-cover" src="${escapeArticle(article.cover_image_url)}" alt="">` : ''}
@@ -157,7 +157,7 @@ if (contactForm) {
         </article>`;
       document.title = article.title + ' – FO Free Distributions';
     } catch (error) {
-      target.innerHTML = `<div class="article-detail-error"><h1>Article indisponible</h1><p>${escapeArticle(error.message)}</p><a class="button button-outline" href="/#actualites">← Retour aux actualités</a></div>`;
+      target.innerHTML = `<div class="article-detail-error"><h1>Article indisponible</h1><p>${escapeArticle(error.message)}</p><a class="button button-outline" href="/#actualites">← Retour aux actualités</a></div data-homepage="claims_title">`;
     }
   })();
 } else if (/^\/(mentions-legales|confidentialite|cookies)\/?$/.test(location.pathname)) {
@@ -188,11 +188,11 @@ document.querySelector('#app').innerHTML = `
     <section class="hero" id="accueil">
       <div class="hero-content">
         <span class="eyebrow">FOCOM · Free Distributions</span>
-        <h1>La voix des salariés<br><span>des boutiques Free.</span></h1>
-        <p>Un espace d’information, de dialogue et d’action syndicale dédié aux équipes de Free Distributions.</p>
+        <h1 data-homepage="hero_title">La voix des salariés<br><span>des boutiques Free.</span></h1>
+        <p data-homepage="hero_text">Un espace d’information, de dialogue et d’action syndicale dédié aux équipes de Free Distributions.</p>
         <div class="hero-actions">
-          <a class="button button-red" href="#revendications">Nos revendications</a>
-          <a class="button button-outline" href="/contact">Nous contacter</a>
+          <a class="button button-red" data-homepage-link="hero_primary" href="#revendications">Nos revendications</a>
+          <a class="button button-outline" data-homepage-link="hero_secondary" href="/contact">Nous contacter</a>
         </div>
       </div>
       <div class="hero-visual" aria-hidden="true">
@@ -210,12 +210,12 @@ document.querySelector('#app').innerHTML = `
     </section>
 
     <section class="intro section">
-      <div><span class="eyebrow">Notre engagement</span><h2>À vos côtés, <span>au quotidien.</span></h2></div>
-      <p>La vente, le conseil et l’accompagnement des clients en boutique mobilisent des compétences et un engagement essentiels. FO Free Distributions porte la parole des salariés et défend leurs intérêts professionnels.</p>
+      <div><span class="eyebrow" data-homepage="intro_eyebrow">Notre engagement</span><h2 data-homepage="intro_title">À vos côtés, <span>au quotidien.</span></h2></div>
+      <p data-homepage="intro_text">La vente, le conseil et l’accompagnement des clients en boutique mobilisent des compétences et un engagement essentiels. FO Free Distributions porte la parole des salariés et défend leurs intérêts professionnels.</p>
     </section>
 
     <section class="section light-section" id="actualites">
-      <div class="section-heading"><div><span class="eyebrow">Restez informés</span><h2>Actualités</h2></div><span class="section-note">Les informations dédiées à Free Distributions</span></div>
+      <div class="section-heading"><div><span class="eyebrow" data-homepage="news_eyebrow">Restez informés</span><h2>Actualités</h2></div><span class="section-note" data-homepage="news_note">Les informations dédiées à Free Distributions</span></div>
       <div id="articles-list" aria-live="polite">
         <div class="empty-state"><span class="empty-icon">✦</span><h3>Chargement des actualités…</h3><p>Nous récupérons les dernières publications.</p></div>
       </div>
@@ -223,10 +223,10 @@ document.querySelector('#app').innerHTML = `
 
     <section class="section claims-section" id="revendications">
       <div class="section-heading">
-        <div><span class="eyebrow">Élections professionnelles · FO Free Distributions</span><h2>Nos revendications</h2></div>
+        <div><span class="eyebrow" data-homepage="claims_eyebrow">Élections professionnelles · FO Free Distributions</span><h2>Nos revendications</h2></div>
         <span class="section-note">Un programme construit autour de vos attentes</span>
       </div>
-      <p class="section-lead">Notre ambition : obtenir des avancées concrètes sur les salaires, les commissions, les conditions de travail et la reconnaissance des équipes en boutique. Voici les engagements que FO souhaite porter avec vous.</p>
+      <p class="section-lead" data-homepage="claims_lead">Notre ambition : obtenir des avancées concrètes sur les salaires, les commissions, les conditions de travail et la reconnaissance des équipes en boutique. Voici les engagements que FO souhaite porter avec vous.</p>
       <div class="claims-grid">
         <article class="claim-card"><span class="claim-icon" aria-hidden="true">€</span><span class="card-number">01 · POUVOIR D'ACHAT</span><h3>Rémunération juste</h3><ul><li>Augmentations générales et revalorisation des salaires fixes.</li><li>Reconnaissance de l'ancienneté et de l'expérience.</li><li>Primes et commissions transparentes, compréhensibles et vérifiables.</li><li>Une rémunération qui ne repose pas uniquement sur des objectifs commerciaux.</li></ul></article>
         <article class="claim-card"><span class="claim-icon" aria-hidden="true">↗</span><span class="card-number">02 · COMMISSIONS</span><h3>Des objectifs atteignables</h3><ul><li>Des objectifs adaptés à la fréquentation et à la réalité de chaque boutique.</li><li>Des règles de calcul des commissions claires et stables.</li><li>La prise en compte du travail collectif et des missions réellement effectuées.</li><li>La fin des changements imprévisibles en cours de période.</li></ul></article>
@@ -245,16 +245,16 @@ document.querySelector('#app').innerHTML = `
     </section>
 
     <section class="section light-section" id="droits">
-      <div class="section-heading"><div><span class="eyebrow">Mieux connaître vos droits</span><h2>Vos droits au travail</h2></div></div>
-      <p class="section-lead">Des repères pratiques pour comprendre vos droits et savoir vers qui vous tourner. Les contenus détaillés seront publiés prochainement.</p>
+      <div class="section-heading"><div><span class="eyebrow" data-homepage="rights_eyebrow">Mieux connaître vos droits</span><h2 data-homepage="rights_title">Vos droits au travail</h2></div></div>
+      <p class="section-lead" data-homepage="rights_lead">Des repères pratiques pour comprendre vos droits et savoir vers qui vous tourner. Les contenus détaillés seront publiés prochainement.</p>
       <a class="text-link" href="/contact">Une question ? Contactez FO <span>→</span></a>
     </section>
 
     <section class="section light-section survey-section" id="questionnaires">
       <div class="survey-intro">
-        <span class="eyebrow">Votre avis compte</span>
-        <h2>Donnez votre avis <span>en toute confidentialité.</span></h2>
-        <p>Cette consultation permet de faire remonter les attentes et les priorités des salariés de Free Distributions. Vos réponses sont enregistrées sans nom ni adresse e-mail.</p>
+        <span class="eyebrow" data-homepage="survey_eyebrow">Votre avis compte</span>
+        <h2 data-homepage="survey_title">Donnez votre avis <span>en toute confidentialité.</span></h2>
+        <p data-homepage="survey_text">Cette consultation permet de faire remonter les attentes et les priorités des salariés de Free Distributions. Vos réponses sont enregistrées sans nom ni adresse e-mail.</p>
         <div class="survey-privacy"><strong>Questionnaire anonyme</strong><span>Aucun nom ni e-mail n'est demandé. Évitez toutefois de mentionner des personnes ou des informations permettant de vous identifier dans votre commentaire.</span></div>
       </div>
       <form id="fd-survey-form" class="survey-form">
@@ -317,6 +317,27 @@ document.querySelector('#app').innerHTML = `
 
   <footer class="site-footer"><a class="footer-brand" href="#accueil"><img class="footer-logo" src="/logo-focom-fond-rouge.png" alt="FOCOM"><span>FOCOM · Free Distributions</span></a><span>Un site dédié aux salariés de Free Distributions</span><nav class="footer-legal"><a href="/mentions-legales">Mentions légales</a><a href="/confidentialite">Confidentialité</a><a href="/cookies">Cookies</a></nav><a href="#accueil">Retour en haut ↑</a></footer>
 `;
+
+(async () => {
+  try {
+    const response = await fetch('/api/homepage', { headers: { Accept: 'application/json' } });
+    if (!response.ok) return;
+    const { content = {} } = await response.json();
+    document.querySelectorAll('[data-homepage]').forEach(node => {
+      const key = node.dataset.homepage;
+      if (typeof content[key] === 'string') node.textContent = content[key];
+    });
+    document.querySelectorAll('[data-homepage]').forEach(node => { node.style.whiteSpace = 'pre-line'; });
+    for (const [name, prefix] of [['hero_primary','hero_primary'],['hero_secondary','hero_secondary']]) {
+      const link = document.querySelector('[data-homepage-link="' + name + '"]');
+      if (link) {
+        if (content[prefix + '_label']) link.textContent = content[prefix + '_label'];
+        if (content[prefix + '_url']) link.href = content[prefix + '_url'];
+      }
+    }
+  } catch (error) { console.warn('Homepage content not loaded:', error); }
+})();
+
 
 installBackToTop();
 
