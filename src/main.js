@@ -16,13 +16,22 @@ if (/^\/admin\/?$/.test(location.pathname)) {
         <h1>Contactez <span>FO.</span></h1>
         <p>Une question, une difficulté au travail, une suggestion ou besoin d'un échange ? L'équipe FO Free Distributions est à votre écoute.</p>
       </section>
-      <section class="contact-page-card">
+      <section class="contact-page-card contact-form-card">
         <div class="contact-icon" aria-hidden="true">✉</div>
         <div>
-          <span class="eyebrow">Par courrier électronique</span>
-          <h2>Écrire à l'équipe FO</h2>
-          <p>Vous pouvez nous contacter directement par e-mail. Décrivez votre demande en évitant d'inclure des informations personnelles sensibles si elles ne sont pas nécessaires.</p>
-          <a class="button button-red" href="mailto:contact@focom-iliad.fr?subject=Contact%20FO%20Free%20Distributions">contact@focom-iliad.fr <span>→</span></a>
+          <span class="eyebrow">Écrivez-nous</span>
+          <h2>Envoyer un message à l'équipe FO</h2>
+          <p>Votre message sera transmis à l'équipe FO Free Distributions. Les champs marqués d'un astérisque sont obligatoires.</p>
+          <form id="fd-contact-form" class="contact-form">
+            <label>Nom et prénom <span>(facultatif)</span><input name="name" type="text" maxlength="120" autocomplete="name" placeholder="Votre nom"></label>
+            <label>Adresse e-mail <b>*</b><input name="email" type="email" maxlength="254" required autocomplete="email" placeholder="vous@exemple.fr"></label>
+            <label>Objet <b>*</b><input name="subject" type="text" maxlength="160" required placeholder="Objet de votre demande"></label>
+            <label>Votre message <b>*</b><textarea name="message" rows="7" minlength="10" maxlength="5000" required placeholder="Décrivez votre demande (5 000 caractères maximum)."></textarea></label>
+            <div class="contact-honeypot" aria-hidden="true"><label>Ne pas remplir<input name="website" type="text" tabindex="-1" autocomplete="off"></label></div>
+            <p class="contact-form-privacy">Les informations saisies sont utilisées uniquement pour répondre à votre demande. Votre adresse e-mail sera utilisée pour vous répondre et ne sera pas affichée sur le site.</p>
+            <button class="button button-red" type="submit">Envoyer le message <span>→</span></button>
+            <p id="contact-message" class="contact-message" role="status" aria-live="polite"></p>
+          </form>
         </div>
       </section>
       <section class="contact-page-note">
@@ -222,6 +231,44 @@ async function loadArticles() {
 }
 
 loadArticles();
+
+// Contact form: sends messages through the Worker to the FO mailbox.
+const contactForm = document.querySelector('#fd-contact-form');
+if (contactForm) {
+  const contactStatus = document.querySelector('#contact-message');
+  contactForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const submit = contactForm.querySelector('button[type="submit"]');
+    const data = new FormData(contactForm);
+    submit.disabled = true;
+    submit.textContent = 'Envoi en cours…';
+    contactStatus.textContent = '';
+    try {
+      const response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({
+          name: String(data.get('name') || ''),
+          email: String(data.get('email') || ''),
+          subject: String(data.get('subject') || ''),
+          message: String(data.get('message') || ''),
+          website: String(data.get('website') || ''),
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.ok) throw new Error(result.message || 'Impossible d’envoyer votre message.');
+      contactForm.reset();
+      contactStatus.textContent = result.message || 'Votre message a bien été envoyé.';
+      contactStatus.className = 'contact-message is-success';
+    } catch (error) {
+      contactStatus.textContent = error.message || 'Une erreur est survenue. Merci de réessayer.';
+      contactStatus.className = 'contact-message is-error';
+    } finally {
+      submit.disabled = false;
+      submit.innerHTML = 'Envoyer le message <span>→</span>';
+    }
+  });
+}
 
 // Anonymous employee questionnaire. No name, email or IP address is requested or stored by this endpoint.
 const surveyForm = document.querySelector('#fd-survey-form');
