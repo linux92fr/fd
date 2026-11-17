@@ -387,7 +387,7 @@ async function handleAdmin(request, env, url, origin) {
       return json({ error: "INVALID_STATUS" }, 400, origin);
     }
     const result = await withDatabase(env, db => db.query(
-      "UPDATE public.contact_messages SET status=$1, updated_at=NOW(), processed_at=CASE WHEN $1 IN ('resolved','archived') THEN COALESCE(processed_at, NOW()) ELSE NULL END WHERE id=$2 RETURNING id, status, updated_at, processed_at",
+      "UPDATE public.contact_messages SET status=$1::varchar, updated_at=NOW(), processed_at=CASE WHEN $1::varchar IN ('resolved','archived') THEN COALESCE(processed_at, NOW()) ELSE NULL END WHERE id=$2::bigint RETURNING id, status, updated_at, processed_at",
       [status, Number(messageMatch[1])]
     ));
     return result.rowCount ? json({ message: result.rows[0] }, 200, origin) : json({ error: "MESSAGE_NOT_FOUND" }, 404, origin);
