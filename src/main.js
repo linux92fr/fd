@@ -187,7 +187,7 @@ document.querySelector('#app').innerHTML = `
   <main>
     <section class="hero" id="accueil">
       <div class="hero-content">
-        <span class="eyebrow">FOCOM · Free Distributions</span>
+        <span class="eyebrow" data-homepage="hero_eyebrow">FOCOM · Free Distributions</span>
         <h1 data-homepage="hero_title">La voix des salariés<br><span>des boutiques Free.</span></h1>
         <p data-homepage="hero_text">Un espace d’information, de dialogue et d’action syndicale dédié aux équipes de Free Distributions.</p>
         <div class="hero-actions">
@@ -215,7 +215,7 @@ document.querySelector('#app').innerHTML = `
     </section>
 
     <section class="section light-section" id="actualites">
-      <div class="section-heading"><div><span class="eyebrow" data-homepage="news_eyebrow">Restez informés</span><h2>Actualités</h2></div><span class="section-note" data-homepage="news_note">Les informations dédiées à Free Distributions</span></div>
+      <div class="section-heading"><div><span class="eyebrow" data-homepage="news_eyebrow">Restez informés</span><h2 data-homepage="news_title">Actualités</h2></div><span class="section-note" data-homepage="news_note">Les informations dédiées à Free Distributions</span></div>
       <div id="articles-list" aria-live="polite">
         <div class="empty-state"><span class="empty-icon">✦</span><h3>Chargement des actualités…</h3><p>Nous récupérons les dernières publications.</p></div>
       </div>
@@ -223,8 +223,8 @@ document.querySelector('#app').innerHTML = `
 
     <section class="section claims-section" id="revendications">
       <div class="section-heading">
-        <div><span class="eyebrow" data-homepage="claims_eyebrow">Élections professionnelles · FO Free Distributions</span><h2>Nos revendications</h2></div>
-        <span class="section-note">Un programme construit autour de vos attentes</span>
+        <div><span class="eyebrow" data-homepage="claims_eyebrow">Élections professionnelles · FO Free Distributions</span><h2 data-homepage="claims_title">Nos revendications</h2></div>
+        <span class="section-note" data-homepage="claims_note">Un programme construit autour de vos attentes</span>
       </div>
       <p class="section-lead" data-homepage="claims_lead">Notre ambition : obtenir des avancées concrètes sur les salaires, les commissions, les conditions de travail et la reconnaissance des équipes en boutique. Voici les engagements que FO souhaite porter avec vous.</p>
       <div class="claims-grid">
