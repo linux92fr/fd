@@ -502,6 +502,23 @@ export default {
       }
     }
 
+    const publicArticleMatch = url.pathname.match(/^\/api\/articles\/([a-z0-9-]+)\/?$/i);
+    if (publicArticleMatch && request.method === "GET") {
+      try {
+        const slug = decodeURIComponent(publicArticleMatch[1]);
+        const result = await withDatabase(env, (db) => db.query(
+          `SELECT id, title, slug, excerpt, content, cover_image_url, category, published_at
+           FROM articles WHERE slug = $1 AND status = 'published' AND published_at <= NOW() LIMIT 1`,
+          [slug]
+        ));
+        if (!result.rows.length) return json({ error: "ARTICLE_NOT_FOUND" }, 404, origin);
+        return json({ article: result.rows[0] }, 200, origin);
+      } catch (error) {
+        console.error("Public article request failed:", error.message);
+        return json({ error: "ARTICLE_UNAVAILABLE" }, 503, origin);
+      }
+    }
+
     if (url.pathname === "/api/articles" && request.method === "GET") {
       try {
         const result = await withDatabase(env, (db) => db.query(
