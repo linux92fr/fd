@@ -9,6 +9,7 @@ const AUTH_BASE_URL = "https://ep-sweet-resonance-b9ov2yaa.neonauth.c-7.eu-centr
 const AUTH_JWKS = createRemoteJWKSet(new URL(AUTH_BASE_URL + "/.well-known/jwks.json"));
 const AUTH_ISSUER = new URL(AUTH_BASE_URL).origin;
 const ADMIN_EMAIL = "free-distri@focom-iliad.fr";
+const HOMEPAGE_DEFAULTS = {"hero_eyebrow":"FOCOM · Free Distributions","hero_title":"La voix des salariés\ndes boutiques Free.","hero_text":"Un espace d’information, de dialogue et d’action syndicale dédié aux équipes de Free Distributions.","hero_primary_label":"Nos revendications","hero_primary_url":"#revendications","hero_secondary_label":"Nous contacter","hero_secondary_url":"/contact","intro_eyebrow":"Notre engagement","intro_title":"À vos côtés, au quotidien.","intro_text":"La vente, le conseil et l’accompagnement des clients en boutique mobilisent des compétences et un engagement essentiels. FO Free Distributions porte la parole des salariés et défend leurs intérêts professionnels.","news_eyebrow":"Restez informés","news_title":"Actualités","news_note":"Les informations dédiées à Free Distributions","claims_eyebrow":"Élections professionnelles · FO Free Distributions","claims_title":"Nos revendications","claims_lead":"Notre ambition : obtenir des avancées concrètes sur les salaires, les commissions, les conditions de travail et la reconnaissance des équipes en boutique. Voici les engagements que FO souhaite porter avec vous.","rights_eyebrow":"Mieux connaître vos droits","rights_title":"Vos droits au travail","rights_lead":"Des repères pratiques pour comprendre vos droits et savoir vers qui vous tourner. Les contenus détaillés seront publiés prochainement.","survey_eyebrow":"Votre avis compte","survey_title":"Donnez votre avis en toute confidentialité.","survey_text":"Cette consultation permet de faire remonter les attentes et les priorités des salariés de Free Distributions. Vos réponses sont enregistrées sans nom ni adresse e-mail."};
 const SURVEY_ACCESS_ISSUER = "https://linux92fr.cloudflareaccess.com";
 const SURVEY_ACCESS_AUDIENCE = "e58983dc65cd10dd66fdb66e69e85c1e099f2427f9de1e8fb03b84b961bb22ed";
 const SURVEY_ACCESS_JWKS = createRemoteJWKSet(new URL(SURVEY_ACCESS_ISSUER + "/cdn-cgi/access/certs"));
@@ -312,6 +313,27 @@ async function handleAdmin(request, env, url, origin) {
   if (access.denied) return json({ error: access.denied }, 401, origin);
   const admin = access.admin;
 
+  if (url.pathname === "/api/admin/homepage" && request.method === "GET") {
+    const result = await withDatabase(env, db => db.query("SELECT content FROM public.homepage_content WHERE id=1"));
+    return json({ content: { ...HOMEPAGE_DEFAULTS, ...(result.rows[0]?.content || {}) } }, 200, origin);
+  }
+  if (url.pathname === "/api/admin/homepage" && request.method === "PUT") {
+    let body;
+    try { body = await request.json(); } catch { return json({ error: "INVALID_JSON" }, 400, origin); }
+    if (!body || typeof body.content !== "object" || Array.isArray(body.content)) return json({ error: "INVALID_CONTENT" }, 400, origin);
+    const content = {};
+    for (const [key, fallback] of Object.entries(HOMEPAGE_DEFAULTS)) {
+      const value = body.content[key] === undefined ? fallback : String(body.content[key]);
+      if (value.length > 2000) return json({ error: "FIELD_TOO_LONG", field: key }, 400, origin);
+      content[key] = value;
+    }
+    await withDatabase(env, db => db.query(
+      "INSERT INTO public.homepage_content (id, content, updated_at) VALUES (1, $1::jsonb, NOW()) ON CONFLICT (id) DO UPDATE SET content=EXCLUDED.content, updated_at=NOW()",
+      [JSON.stringify(content)]
+    ));
+    return json({ ok: true, content }, 200, origin);
+  }
+
   if (url.pathname === "/api/admin/media" && request.method === "GET") {
     if (!env.MEDIA) return json({ error: "MEDIA_STORAGE_UNAVAILABLE" }, 503, origin);
     const listed = await env.MEDIA.list({ prefix: "uploads/", limit: 200 });
@@ -524,6 +546,16 @@ export default {
       } catch (error) {
         console.error("Public article request failed:", error.message);
         return json({ error: "ARTICLE_UNAVAILABLE" }, 503, origin);
+      }
+    }
+
+    if (url.pathname === "/api/homepage" && request.method === "GET") {
+      try {
+        const result = await withDatabase(env, db => db.query("SELECT content FROM public.homepage_content WHERE id=1"));
+        return json({ content: { ...HOMEPAGE_DEFAULTS, ...(result.rows[0]?.content || {}) } }, 200, origin);
+      } catch (error) {
+        console.error("Homepage content request failed:", error?.code || error?.name || "unknown");
+        return json({ content: HOMEPAGE_DEFAULTS }, 200, origin);
       }
     }
 
