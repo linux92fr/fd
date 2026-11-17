@@ -21,7 +21,7 @@ if (/^\/admin\/?$/.test(location.pathname)) {
   document.querySelector('#app').innerHTML = `
     <header class="site-header">
       <a class="brand" href="/" aria-label="FO Free Distributions, accueil">
-        <span class="fo-mark">FO</span>
+        <img class="brand-logo" src="/logo-focom-fond-rouge.png" alt="FOCOM">
         <span class="brand-copy"><strong>FOCOM</strong><b><em>Free</em> Distributions</b><small>Le syndicat des salariés de Free Distributions</small></span>
       </a>
       <a class="button button-outline" href="/">← Retour à l'accueil</a>
@@ -113,7 +113,7 @@ const nav = [
 document.querySelector('#app').innerHTML = `
   <header class="site-header">
     <a class="brand" href="#accueil" aria-label="FO Free Distributions, accueil">
-      <span class="fo-mark">FO</span>
+      <img class="brand-logo" src="/logo-focom-fond-rouge.png" alt="FOCOM">
       <span class="brand-copy"><strong>FOCOM</strong><b><em>Free</em> Distributions</b><small>Le syndicat des salariés de Free Distributions</small></span>
     </a>
     <button class="menu-toggle" aria-label="Ouvrir le menu" aria-expanded="false">☰</button>
