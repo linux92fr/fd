@@ -312,6 +312,17 @@ async function handleAdmin(request, env, url, origin) {
   if (access.denied) return json({ error: access.denied }, 401, origin);
   const admin = access.admin;
 
+  if (url.pathname === "/api/admin/secure-survey-results" && request.method === "GET") {
+    if (!env.SURVEYS_DB) return json({ error: "SURVEY_STORAGE_UNAVAILABLE" }, 503, origin);
+    const result = await env.SURVEYS_DB.prepare("SELECT created_at, answers_json FROM survey_responses ORDER BY created_at DESC").all();
+    const responses = (result.results || []).map(row => {
+      let answers = {};
+      try { answers = JSON.parse(row.answers_json); } catch {}
+      return { created_at: row.created_at, answers };
+    });
+    return json({ responses }, 200, origin);
+  }
+
   if (url.pathname === "/api/admin/overview" && request.method === "GET") {
     const result = await withDatabase(env, db => db.query(
       `SELECT
