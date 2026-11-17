@@ -375,10 +375,18 @@ async function handleAdmin(request, env, url, origin) {
     const result = await withDatabase(env, db => db.query(
       "SELECT id, name, email, subject, message, status, received_at, updated_at, processed_at FROM public.contact_messages ORDER BY received_at DESC LIMIT 100"
     ));
-    return json({ messages: result.rows }, 200, origin);
+    return json({ messages: result.rows, permissions: { canDelete: admin.email.toLowerCase() === ADMIN_EMAIL } }, 200, origin);
   }
 
   const messageMatch = url.pathname.match(/^\/api\/admin\/messages\/(\d+)$/);
+  if (messageMatch && request.method === "DELETE") {
+    if (admin.email.toLowerCase() !== ADMIN_EMAIL) return json({ error: "SUPER_ADMIN_REQUIRED" }, 403, origin);
+    const result = await withDatabase(env, db => db.query(
+      "DELETE FROM public.contact_messages WHERE id=$1::bigint RETURNING id",
+      [Number(messageMatch[1])]
+    ));
+    return result.rowCount ? json({ ok: true, deletedId: result.rows[0].id }, 200, origin) : json({ error: "MESSAGE_NOT_FOUND" }, 404, origin);
+  }
   if (messageMatch && request.method === "PATCH") {
     let body;
     try { body = await request.json(); } catch { return json({ error: "INVALID_JSON" }, 400, origin); }
