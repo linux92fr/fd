@@ -424,7 +424,7 @@ async function handleAdmin(request, env, url, origin) {
       if (id) {
         const updated = await db.query(
           `UPDATE articles SET title=$1, slug=$2, excerpt=$3, content=$4, cover_image_url=$5, category=$6,
-             status=$7, published_at=CASE WHEN $7='published' THEN COALESCE(published_at, NOW()) ELSE NULL END,
+             status=$7::varchar, published_at=CASE WHEN $7::varchar='published' THEN COALESCE(published_at, NOW()) ELSE NULL END,
              updated_at=NOW() WHERE id=$8
            RETURNING id, title, slug, status, published_at`,
           [title, slug, excerpt || null, content, cover || null, category, status, id]
@@ -433,7 +433,7 @@ async function handleAdmin(request, env, url, origin) {
       }
       const inserted = await db.query(
         `INSERT INTO articles (title, slug, excerpt, content, cover_image_url, category, status, published_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,CASE WHEN $7='published' THEN NOW() ELSE NULL END)
+         VALUES ($1,$2,$3,$4,$5,$6,$7::varchar,CASE WHEN $7::varchar='published' THEN NOW() ELSE NULL END)
          RETURNING id, title, slug, status, published_at`,
         [title, slug, excerpt || null, content, cover || null, category, status]
       );
