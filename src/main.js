@@ -98,7 +98,48 @@ if (contactForm) {
     }
   });
 }
-} else if (/^\/(mentions-legales|confidentialite|cookies)\/?$/.test(location.pathname)) {
+} else if (/^\/actualites\/[a-z0-9-]+\/?$/i.test(location.pathname)) {
+  const slug = decodeURIComponent(location.pathname.split('/').filter(Boolean)[1] || '');
+  const escapeArticle = value => String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[char]));
+  document.querySelector('#app').innerHTML = `
+    <header class="site-header article-detail-header">
+      <a class="brand" href="/" aria-label="FO Free Distributions, accueil">
+        <img class="brand-logo" src="/logo-focom-fond-rouge.png" alt="FOCOM">
+        <span class="brand-copy"><strong>FOCOM</strong><b><em>Free</em> Distributions</b><small>Le syndicat des salariés de Free Distributions</small></span>
+      </a>
+      <a class="button button-outline" href="/#actualites">← Toutes les actualités</a>
+    </header>
+    <main class="article-detail-page" id="article-detail"><p class="article-detail-loading">Chargement de l’article…</p></main>
+    <footer class="site-footer"><a class="footer-brand" href="/"><img class="footer-logo" src="/logo-focom-fond-rouge.png" alt="FOCOM"><span>FOCOM · Free Distributions</span></a><span>À l'écoute des salariés</span><a href="/#actualites">Toutes les actualités ↑</a></footer>
+  `;
+  installBackToTop();
+  (async () => {
+    const target = document.querySelector('#article-detail');
+    try {
+      const response = await fetch('/api/articles/' + encodeURIComponent(slug), { headers: { Accept: 'application/json' } });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.article) throw new Error(response.status === 404 ? 'Cet article est introuvable ou n’est plus publié.' : 'Impossible de charger cet article pour le moment.');
+      const article = data.article;
+      const date = article.published_at ? new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(new Date(article.published_at)) : '';
+      const paragraphs = String(article.content || '').split(/\\n\\s*\\n/).filter(Boolean).map(block => `<p>${escapeArticle(block).replace(/\\n/g, '<br>')}</p>`).join('');
+      target.innerHTML = `
+        <article class="article-detail">
+          <span class="eyebrow">${escapeArticle(article.category || 'Actualités')}</span>
+          <h1>${escapeArticle(article.title)}</h1>
+          ${date ? `<time datetime="${escapeArticle(article.published_at)}">${escapeArticle(date)}</time>` : ''}
+          ${article.cover_image_url ? `<img class="article-detail-cover" src="${escapeArticle(article.cover_image_url)}" alt="">` : ''}
+          ${article.excerpt ? `<p class="article-detail-excerpt">${escapeArticle(article.excerpt)}</p>` : ''}
+          <div class="article-detail-content">${paragraphs}</div>
+          <a class="button button-outline" href="/#actualites">← Retour aux actualités</a>
+        </article>`;
+      document.title = article.title + ' – FO Free Distributions';
+    } catch (error) {
+      target.innerHTML = `<div class="article-detail-error"><h1>Article indisponible</h1><p>${escapeArticle(error.message)}</p><a class="button button-outline" href="/#actualites">← Retour aux actualités</a></div>`;
+    }
+  })();
+} else if (/^\\/(mentions-legales|confidentialite|cookies)\\/?$/.test(location.pathname)) {
   import('./legal.js');
 } else {
 const nav = [
