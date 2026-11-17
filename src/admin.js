@@ -255,6 +255,23 @@ function editor(a = {}) {
   const form = el.querySelector('#article-form');
   const preview = el.querySelector('#article-preview');
   const fields = name => form.elements.namedItem(name);
+  const contentField = fields('content');
+  el.querySelectorAll('.article-format-toolbar button').forEach(button => {
+    button.addEventListener('click', () => {
+      const start = contentField.selectionStart;
+      const end = contentField.selectionEnd;
+      const selected = contentField.value.slice(start, end);
+      if (button.dataset.format) {
+        const [before, after] = button.dataset.format.split('|');
+        contentField.setRangeText(before + (selected || 'texte') + after, start, end, 'select');
+      } else if (button.dataset.prefix) {
+        const lineStart = contentField.value.lastIndexOf('\\n', Math.max(0, start - 1)) + 1;
+        contentField.setRangeText(button.dataset.prefix + selected, lineStart, end, 'select');
+      }
+      contentField.focus();
+      contentField.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  });
   const renderPreview = () => {
     const title = fields('title').value.trim();
     const content = fields('content').value.trim();
