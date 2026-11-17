@@ -298,3 +298,10 @@
 .article-detail-content blockquote,.preview-content blockquote{border-left:4px solid var(--red);padding:12px 18px;margin:1.5em 0;background:#f8f8fa;color:#555;font-style:italic}
 .article-detail-content a,.preview-content a{color:var(--red);text-decoration:underline}
 .article-detail-content strong,.preview-content strong{font-weight:800}
+
+.admin-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.admin-form-grid label{display:flex;flex-direction:column;gap:7px;font-weight:700;font-size:13px}
+.admin-form-grid input,.admin-form-grid textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:12px;font:inherit;font-weight:400;color:var(--ink);background:#fff}
+.admin-form-grid textarea{resize:vertical;min-height:86px}
+.admin-form-grid .admin-form-actions,.admin-form-grid .admin-message{grid-column:1/-1}
+@media(max-width:720px){.admin-form-grid{grid-template-columns:1fr}}
