@@ -58,7 +58,6 @@ async function requireSurveyAdmin(request) {
 async function handleContact(request, env) {
   const origin = request.headers.get("Origin") || "";
   if (!allowedOrigins.has(origin)) return json({ error: "INVALID_ORIGIN" }, 403, origin);
-  if (!env.BREVO_API_KEY) return json({ error: "MAIL_NOT_CONFIGURED" }, 503, origin);
   if (request.headers.get("content-type")?.split(";")[0].trim() !== "application/json") {
     return json({ error: "INVALID_CONTENT_TYPE" }, 415, origin);
   }
@@ -93,6 +92,21 @@ async function handleContact(request, env) {
   ].join("\n");
 
   try {
+    await withDatabase(env, db => db.query(
+      "INSERT INTO public.contact_messages (name, email, subject, message) VALUES ($1, $2, $3, $4)",
+      [safeName || null, email, safeSubject, message]
+    ));
+  } catch (error) {
+    console.error("Contact message storage failed:", error?.code || error?.name || "unknown");
+    return json({ error: "MESSAGE_STORAGE_FAILED", message: "Votre message n'a pas pu être enregistré. Merci de réessayer ultérieurement." }, 503, origin);
+  }
+
+  if (!env.BREVO_API_KEY) {
+    console.warn("Contact notification not sent: BREVO_API_KEY is missing.");
+    return json({ ok: true, message: "Votre message a bien été reçu et enregistré. L'équipe FO pourra le consulter dans l'espace d'administration." }, 200, origin);
+  }
+
+  try {
     const response = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
       headers: {
@@ -111,12 +125,12 @@ async function handleContact(request, env) {
     if (!response.ok) {
       const detail = await response.text();
       console.error("Brevo contact delivery failed:", response.status, detail.slice(0, 500));
-      return json({ error: "MAIL_DELIVERY_FAILED", message: "L'envoi n'a pas abouti. Merci de réessayer ultérieurement." }, 503, origin);
+      return json({ ok: true, message: "Votre message a bien été reçu et enregistré. La notification par e-mail n'a pas abouti, mais l'équipe FO pourra consulter votre message dans l'espace d'administration." }, 200, origin);
     }
     return json({ ok: true, message: "Merci, votre message a bien été envoyé à l'équipe FO." }, 200, origin);
   } catch (error) {
     console.error("Contact email request failed:", error?.name || "unknown");
-    return json({ error: "MAIL_DELIVERY_FAILED", message: "L'envoi n'a pas abouti. Merci de réessayer ultérieurement." }, 503, origin);
+    return json({ ok: true, message: "Votre message a bien été reçu et enregistré. La notification par e-mail n'a pas abouti, mais l'équipe FO pourra consulter votre message dans l'espace d'administration." }, 200, origin);
   }
 }
 
@@ -298,6 +312,28 @@ async function handleAdmin(request, env, url, origin) {
   if (access.denied) return json({ error: access.denied }, 401, origin);
   const admin = access.admin;
 
+  if (url.pathname === "/api/admin/messages" && request.method === "GET") {
+    const result = await withDatabase(env, db => db.query(
+      "SELECT id, name, email, subject, message, status, received_at, updated_at, processed_at FROM public.contact_messages ORDER BY received_at DESC LIMIT 100"
+    ));
+    return json({ messages: result.rows }, 200, origin);
+  }
+
+  const messageMatch = url.pathname.match(/^\\/api\\/admin\\/messages\\/(\\d+)$/);
+  if (messageMatch && request.method === "PATCH") {
+    let body;
+    try { body = await request.json(); } catch { return json({ error: "INVALID_JSON" }, 400, origin); }
+    const status = String(body.status || "");
+    if (!["new", "in_progress", "resolved", "archived"].includes(status)) {
+      return json({ error: "INVALID_STATUS" }, 400, origin);
+    }
+    const result = await withDatabase(env, db => db.query(
+      "UPDATE public.contact_messages SET status=$1, updated_at=NOW(), processed_at=CASE WHEN $1 IN ('resolved','archived') THEN COALESCE(processed_at, NOW()) ELSE NULL END WHERE id=$2 RETURNING id, status, updated_at, processed_at",
+      [status, Number(messageMatch[1])]
+    ));
+    return result.rowCount ? json({ message: result.rows[0] }, 200, origin) : json({ error: "MESSAGE_NOT_FOUND" }, 404, origin);
+  }
+
   if (url.pathname === "/api/admin/articles" && request.method === "GET") {
     const result = await withDatabase(env, (db) => db.query(
       "SELECT id, title, slug, excerpt, content, cover_image_url, category, status, published_at, created_at, updated_at FROM articles ORDER BY updated_at DESC LIMIT 100"
@@ -373,7 +409,7 @@ export default {
         status: 204,
         headers: {
           "access-control-allow-origin": origin,
-          "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
+          "access-control-allow-methods": "GET, POST, PATCH, DELETE, OPTIONS",
           "access-control-allow-headers": "content-type, authorization",
           "access-control-max-age": "86400",
           "vary": "Origin",
