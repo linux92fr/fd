@@ -139,7 +139,7 @@ if (contactForm) {
       target.innerHTML = `<div class="article-detail-error"><h1>Article indisponible</h1><p>${escapeArticle(error.message)}</p><a class="button button-outline" href="/#actualites">← Retour aux actualités</a></div>`;
     }
   })();
-} else if (/^\\/(mentions-legales|confidentialite|cookies)\\/?$/.test(location.pathname)) {
+} else if (/^\/(mentions-legales|confidentialite|cookies)\/?$/.test(location.pathname)) {
   import('./legal.js');
 } else {
 const nav = [
