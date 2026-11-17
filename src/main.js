@@ -192,4 +192,55 @@ async function loadArticles() {
 
 loadArticles();
 
+// Anonymous employee questionnaire. No name, email or IP address is requested or stored by this endpoint.
+const surveyForm = document.querySelector('#fd-survey-form');
+if (surveyForm) {
+  const surveyMessage = document.querySelector('#survey-message');
+  const commentField = surveyForm.elements.namedItem('comment');
+  const charCount = document.querySelector('#survey-char-count');
+  commentField.addEventListener('input', () => { charCount.textContent = String(commentField.value.length); });
+  surveyForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const submit = surveyForm.querySelector('button[type="submit"]');
+    const data = new FormData(surveyForm);
+    const priorities = data.getAll('priorities');
+    if (!priorities.length) {
+      surveyMessage.textContent = 'Merci de sélectionner au moins un sujet prioritaire.';
+      surveyMessage.className = 'survey-message is-error';
+      surveyForm.querySelector('.priority-options').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    submit.disabled = true;
+    submit.textContent = 'Envoi en cours…';
+    surveyMessage.textContent = '';
+    try {
+      const response = await fetch('/api/survey', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({
+          conditions: Number(data.get('conditions')),
+          recognition: Number(data.get('recognition')),
+          priorities,
+          comment: String(data.get('comment') || ''),
+          website: String(data.get('website') || ''),
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.ok) throw new Error(result.message || 'Impossible d’enregistrer vos réponses.');
+      surveyForm.reset();
+      charCount.textContent = '0';
+      surveyMessage.textContent = result.message || 'Merci pour votre participation.';
+      surveyMessage.className = 'survey-message is-success';
+    } catch (error) {
+      surveyMessage.textContent = error.message || 'Une erreur est survenue. Merci de réessayer.';
+      surveyMessage.className = 'survey-message is-error';
+    } finally {
+      submit.disabled = false;
+      submit.innerHTML = 'Envoyer mes réponses <span>→</span>';
+    }
+  });
+}
+
+
+
 }
