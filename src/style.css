@@ -244,3 +244,15 @@
 /* Official FOCOM logo in all page footers */
 .footer-brand{display:inline-flex;align-items:center;gap:11px}
 .footer-logo{display:block;width:48px;height:48px;object-fit:cover;border-radius:5px}
+
+
+/* Administration overview */
+.admin-stats-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:22px}
+.admin-stat{display:flex;flex-direction:column;gap:8px;padding:22px;border:1px solid var(--line);border-radius:10px;background:#fff}
+.admin-stat>span{font-size:13px;color:var(--muted);font-weight:700}
+.admin-stat>strong{font-size:34px;line-height:1.1;color:var(--ink)}
+.admin-stat>small,.admin-help{font-size:12px;color:var(--muted);line-height:1.5}
+.admin-quick-links{display:flex;flex-wrap:wrap;gap:12px;margin-top:18px}
+.admin-quick-links a{text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+.admin-help{margin:18px 0 0}
+@media(max-width:700px){.admin-stats-grid{grid-template-columns:1fr}.admin-stat{padding:18px}.admin-quick-links{flex-direction:column}.admin-quick-links>*{width:100%}}
