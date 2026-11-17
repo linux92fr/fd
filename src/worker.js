@@ -312,6 +312,20 @@ async function handleAdmin(request, env, url, origin) {
   if (access.denied) return json({ error: access.denied }, 401, origin);
   const admin = access.admin;
 
+  if (url.pathname === "/api/admin/overview" && request.method === "GET") {
+    const result = await withDatabase(env, db => db.query(
+      `SELECT
+        (SELECT COUNT(*)::int FROM public.articles) AS articles_total,
+        (SELECT COUNT(*)::int FROM public.articles WHERE status='published') AS articles_published,
+        (SELECT COUNT(*)::int FROM public.articles WHERE status='draft') AS articles_draft,
+        (SELECT COUNT(*)::int FROM public.contact_messages) AS messages_total,
+        (SELECT COUNT(*)::int FROM public.contact_messages WHERE status='new') AS messages_new,
+        (SELECT COUNT(*)::int FROM public.contact_messages WHERE status='in_progress') AS messages_in_progress,
+        (SELECT COUNT(*)::int FROM public.contact_messages WHERE status='resolved') AS messages_resolved`
+    ));
+    return json({ overview: result.rows[0] }, 200, origin);
+  }
+
   if (url.pathname === "/api/admin/messages" && request.method === "GET") {
     const result = await withDatabase(env, db => db.query(
       "SELECT id, name, email, subject, message, status, received_at, updated_at, processed_at FROM public.contact_messages ORDER BY received_at DESC LIMIT 100"
