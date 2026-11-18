@@ -606,7 +606,7 @@ async function handleAdmin(request, env, url, origin) {
         (SELECT COUNT(*)::int FROM public.contact_messages WHERE status='in_progress') AS messages_in_progress,
         (SELECT COUNT(*)::int FROM public.contact_messages WHERE status='resolved') AS messages_resolved`
     ));
-    return json({ overview: result.rows[0] }, 200, origin);
+    return json({ overview: result.rows[0], user: { role: admin.role } }, 200, origin);
   }
 
   if (url.pathname === "/api/admin/messages" && request.method === "GET") {
