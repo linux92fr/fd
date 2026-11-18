@@ -257,7 +257,7 @@ async function usersPage() {
       const role = ['admin','editor','employee'].includes(user.role) ? user.role : 'employee';
       const status = ['pending','active','suspended'].includes(user.status) ? user.status : 'pending';
       const locked = user.email.toLowerCase() === 'free-distri@focom-iliad.fr';
-      return '<tr><td><strong>' + esc(user.name || '—') + '</strong><small>' + esc(user.email) + '</small></td><td>' + (user.email_verified ? 'Vérifiée' : 'Non vérifiée') + '</td><td><select class="user-role" data-id="' + esc(user.id) + '"' + (locked ? ' disabled' : '') + '><option value="employee"' + (role === 'employee' ? ' selected' : '') + '>Salarié / adhérent</option><option value="editor"' + (role === 'editor' ? ' selected' : '') + '>Rédacteur</option><option value="admin"' + (role === 'admin' ? ' selected' : '') + '>Administrateur</option></select></td><td><select class="user-status" data-id="' + esc(user.id) + '"' + (locked ? ' disabled' : '') + '><option value="pending"' + (status === 'pending' ? ' selected' : '') + '>En attente</option><option value="active"' + (status === 'active' ? ' selected' : '') + '>Actif</option><option value="suspended"' + (status === 'suspended' ? ' selected' : '') + '>Suspendu</option></select></td><td>' + (locked ? 'Compte principal protégé' : '<button class="button button-outline-dark user-save" data-id="' + esc(user.id) + '">Enregistrer</button>') + '</td></tr>';
+      return '<tr><td><strong>' + esc(user.name || '—') + '</strong><small>' + esc(user.email) + '</small></td><td>' + (user.email_verified ? 'Vérifiée' : 'Non vérifiée') + '</td><td><select class="user-role" data-id="' + esc(user.id) + '"' + (locked ? ' disabled' : '') + '><option value="employee"' + (role === 'employee' ? ' selected' : '') + '>Salarié / adhérent</option><option value="editor"' + (role === 'editor' ? ' selected' : '') + '>Rédacteur</option><option value="admin"' + (role === 'admin' ? ' selected' : '') + '>Administrateur</option></select></td><td><select class="user-status" data-id="' + esc(user.id) + '"' + (locked ? ' disabled' : '') + '><option value="pending"' + (status === 'pending' ? ' selected' : '') + '>En attente</option><option value="active"' + (status === 'active' ? ' selected' : '') + '>Actif</option><option value="suspended"' + (status === 'suspended' ? ' selected' : '') + '>Suspendu</option></select></td><td>' + (locked ? 'Compte principal protégé' : '<div class="admin-form-actions"><button class="button button-outline-dark user-save" data-id="' + esc(user.id) + '">Enregistrer</button><button class="button button-outline-dark user-delete" data-id="' + esc(user.id) + '" data-email="' + esc(user.email) + '">Supprimer</button></div>') + '</td></tr>';
     }).join('');
     frame('<div class="admin-title-row"><div><span class="eyebrow">Gestion des accès</span><h1>Utilisateurs et rôles</h1><p>Consultez les comptes existants, attribuez un rôle et activez ou suspendez leur accès.</p></div><button id="logout" class="button button-outline-dark">Déconnexion</button></div><section class="admin-panel"><h2>Ajouter un utilisateur</h2><form id="user-create-form" class="admin-form-grid"><label>Nom et prénom<input name="name" maxlength="120" autocomplete="name" required></label><label>Adresse e-mail<input name="email" type="email" maxlength="254" autocomplete="email" required></label><label>Rôle<select name="role"><option value="employee">Salarié / adhérent</option><option value="editor">Rédacteur</option><option value="admin">Administrateur</option></select></label><div class="admin-form-actions"><button class="button button-red" type="submit">Créer le compte</button></div></form><p class="admin-message" id="user-create-status" role="status">Le compte sera créé avec le statut « En attente ». Un e-mail de bienvenue précisera les prochaines étapes.</p></section><section class="admin-panel"><div class="admin-toolbar"><h2>' + users.length + ' compte(s)</h2><div class="admin-form-actions"><button id="back-dashboard" class="button button-outline-dark">← Tableau de bord</button><button id="refresh-users" class="button button-outline-dark">Actualiser</button></div></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Compte</th><th>E-mail</th><th>Rôle</th><th>État</th><th>Action</th></tr></thead><tbody>' + (rows || '<tr><td colspan="5">Aucun compte.</td></tr>') + '</tbody></table></div><p class="admin-message" id="users-status" role="status"></p><p class="admin-help">Les nouveaux comptes sont classés en attente par défaut. L’inscription publique reste désactivée. Le compte administrateur principal ne peut pas être modifié ici.</p></section>');
     root.querySelector('#logout').onclick = async () => { await auth.signOut(); login('Vous êtes déconnecté.'); };
@@ -278,6 +278,24 @@ async function usersPage() {
         if (updatedStatus) updatedStatus.textContent = status.textContent;
       } catch (err) {
         status.textContent = 'Création impossible : ' + err.message;
+        button.disabled = false;
+      }
+    });
+    root.querySelectorAll('.user-delete').forEach(button => button.onclick = async () => {
+      const email = button.dataset.email || 'ce compte';
+      if (!window.confirm('Supprimer définitivement le compte ' + email + ' ?\\n\\nCette action est irréversible. Les articles, questionnaires et autres données du site ne seront pas supprimés.')) return;
+      button.disabled = true;
+      const status = root.querySelector('#users-status');
+      status.textContent = 'Suppression du compte…';
+      try {
+        const result = await call('/api/admin/users/' + encodeURIComponent(button.dataset.id), { method: 'DELETE' });
+        await usersPage();
+        const updatedStatus = root.querySelector('#users-status');
+        if (updatedStatus) updatedStatus.textContent = result.accessCleanupPending
+          ? 'Compte supprimé de Neon Auth ; le nettoyage de son autorisation doit être vérifié.'
+          : 'Le compte ' + email + ' a été supprimé.';
+      } catch (err) {
+        status.textContent = 'Suppression impossible : ' + err.message;
         button.disabled = false;
       }
     });
