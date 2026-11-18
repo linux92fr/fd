@@ -12,6 +12,12 @@
       "id": "2255a1cfe7ce456e9cee25d33b26cf11"
     }
   ],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "fd-media-preview"
+    }
+  ],
   "d1_databases": [
     {
       "binding": "SURVEYS_DB",
