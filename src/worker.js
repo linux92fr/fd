@@ -325,7 +325,7 @@ async function handleAdmin(request, env, url, origin) {
     const r=await withDatabase(env,db=>db.query("INSERT INTO public.newsletter_subscribers(email,status,subscribed_at,unsubscribed_at) VALUES($1,'subscribed',NOW(),NULL) ON CONFLICT(email) DO UPDATE SET status='subscribed',subscribed_at=NOW(),unsubscribed_at=NULL RETURNING id,email,status,subscribed_at",[email]));
     return json({subscriber:r.rows[0]},200,origin);
   }
-  const subMatch=url.pathname.match(/^\\/api\\/admin\\/newsletter\\/subscribers\\/(.+)$/);
+  const subMatch=url.pathname.match(/^\/api\/admin\/newsletter\/subscribers\/(.+)$/);
   if(subMatch&&request.method==="DELETE"){
     const email=decodeURIComponent(subMatch[1]).toLowerCase();
     const r=await withDatabase(env,db=>db.query("UPDATE public.newsletter_subscribers SET status='unsubscribed',unsubscribed_at=NOW() WHERE email=$1 RETURNING email",[email]));
@@ -342,7 +342,7 @@ async function handleAdmin(request, env, url, origin) {
     const r=await withDatabase(env,async db=>id?(await db.query("UPDATE public.newsletter_campaigns SET subject=$1,preview_text=$2,html_content=$3,updated_at=NOW() WHERE id=$4 AND status='draft' RETURNING id,subject,preview_text,html_content,status,recipient_count,sent_count,failed_count,created_at,updated_at,sent_at",[subject,preview,html,id])).rows[0]||null:(await db.query("INSERT INTO public.newsletter_campaigns(subject,preview_text,html_content) VALUES($1,$2,$3) RETURNING id,subject,preview_text,html_content,status,recipient_count,sent_count,failed_count,created_at,updated_at,sent_at",[subject,preview,html])).rows[0]);
     return r?json({campaign:r},200,origin):json({error:"CAMPAIGN_NOT_EDITABLE"},409,origin);
   }
-  const sendMatch=url.pathname.match(/^\\/api\\/admin\\/newsletter\\/campaigns\\/(\\d+)\\/send$/);
+  const sendMatch=url.pathname.match(/^\/api\/admin\/newsletter\/campaigns\/(\d+)\/send$/);
   if(sendMatch&&request.method==="POST"){
     if(!env.BREVO_API_KEY)return json({error:"BREVO_NOT_CONFIGURED"},503,origin);
     const id=Number(sendMatch[1]);
@@ -359,7 +359,7 @@ async function handleAdmin(request, env, url, origin) {
       const results=await Promise.all(batch.recipients.slice(i,i+5).map(async s=>{
         const u="https://fd.focom-iliad.fr/newsletter/desinscription?token="+encodeURIComponent(s.unsubscribe_token);
         const html=(batch.campaign.preview_text?'<div style="display:none;max-height:0;overflow:hidden;opacity:0">' + batch.campaign.preview_text.replace(/[&<>]/g," ") + '</div>':"")+batch.campaign.html_content+'<hr><p style="font:12px Arial;color:#666">Vous recevez cette newsletter FO Free Distribution. <a href="'+u+'">Se désinscrire</a>.</p>';
-        try{const r=await fetch("https://api.brevo.com/v3/smtp/email",{method:"POST",headers:{"accept":"application/json","api-key":env.BREVO_API_KEY,"content-type":"application/json"},body:JSON.stringify({sender:{name:"FO Free Distribution",email:"newsletter@focom-iliad.fr"},to:[{email:s.email}],subject:batch.campaign.subject,htmlContent:html,textContent:html.replace(/<[^>]*>/g," ").replace(/\\s+/g," ").trim(),headers:{"List-Unsubscribe":"<"+u+">","List-Unsubscribe-Post":"List-Unsubscribe=One-Click"}})});if(!r.ok){console.error("Brevo newsletter delivery:",r.status,(await r.text()).slice(0,200));return false;}return true;}catch(e){console.error("Brevo newsletter request:",e?.name||"unknown");return false;}
+        try{const r=await fetch("https://api.brevo.com/v3/smtp/email",{method:"POST",headers:{"accept":"application/json","api-key":env.BREVO_API_KEY,"content-type":"application/json"},body:JSON.stringify({sender:{name:"FO Free Distribution",email:"newsletter@focom-iliad.fr"},to:[{email:s.email}],subject:batch.campaign.subject,htmlContent:html,textContent:html.replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim(),headers:{"List-Unsubscribe":"<"+u+">","List-Unsubscribe-Post":"List-Unsubscribe=One-Click"}})});if(!r.ok){console.error("Brevo newsletter delivery:",r.status,(await r.text()).slice(0,200));return false;}return true;}catch(e){console.error("Brevo newsletter request:",e?.name||"unknown");return false;}
       }));
       sent+=results.filter(Boolean).length;failed+=results.length-results.filter(Boolean).length;
       await withDatabase(env,db=>db.query("UPDATE public.newsletter_campaigns SET sent_count=$1,failed_count=$2,updated_at=NOW() WHERE id=$3",[sent,failed,id]));
