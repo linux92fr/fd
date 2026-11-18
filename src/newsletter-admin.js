@@ -25,7 +25,16 @@ export async function newsletterPage({call,frame,root,dashboard}){
   async function runDelivery(action,button){
    if(!confirm(action==='start'?'Envoyer cette campagne à tous les abonnés actifs ?':action==='resume'?'Reprendre uniquement les envois en attente ? Les résultats incertains ne seront pas renvoyés.':'Réessayer les destinataires dont l’échec est confirmé ?'))return;
    button.disabled=true;root.querySelector('#status').textContent='Traitement des envois…';
-   try{const r=await call('/api/admin/newsletter/campaigns/'+c.id+'/send',{method:'POST',body:JSON.stringify({action})});root.querySelector('#status').textContent='Bilan : '+r.sent+' envoyé(s), '+r.failed+' échec(s), '+r.unknown+' résultat(s) incertain(s), '+r.remaining+' en attente.';setTimeout(list,1800);}
+   try{
+    let nextAction=action,r=null,round=0;
+    do{
+     r=await call('/api/admin/newsletter/campaigns/'+c.id+'/send',{method:'POST',body:JSON.stringify({action:nextAction})});
+     nextAction='resume';round++;
+     root.querySelector('#status').textContent='Traitement par lots… '+r.sent+' envoyé(s), '+r.failed+' échec(s), '+r.unknown+' résultat(s) incertain(s), '+r.remaining+' restant(s).';
+    }while(r.status==='sending'&&r.remaining>0&&round<50);
+    root.querySelector('#status').textContent='Bilan : '+r.sent+' envoyé(s), '+r.failed+' échec(s), '+r.unknown+' résultat(s) incertain(s), '+r.remaining+' restant(s).'+(r.remaining>0?' Relancez la reprise pour continuer.':'');
+    setTimeout(list,1800);
+   }
    catch(x){root.querySelector('#status').textContent=x.message;button.disabled=false;}
   }
   root.querySelector('#send')?.addEventListener('click',e=>runDelivery('start',e.currentTarget));
