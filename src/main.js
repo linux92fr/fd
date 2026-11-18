@@ -244,10 +244,19 @@ document.querySelector('#app').innerHTML = `
       <p class="disclaimer">Ces propositions constituent la base du programme revendicatif présenté aux salariés. Les mesures chiffrées et les priorités définitives seront précisées avec les équipes et les candidats FO.</p>
     </section>
 
-    <section class="section light-section" id="droits">
-      <div class="section-heading"><div><span class="eyebrow" data-homepage="rights_eyebrow">Mieux connaître vos droits</span><h2 data-homepage="rights_title">Vos droits au travail</h2></div></div>
-      <p class="section-lead" data-homepage="rights_lead">Des repères pratiques pour comprendre vos droits et savoir vers qui vous tourner. Les contenus détaillés seront publiés prochainement.</p>
-      <a class="text-link" href="/contact">Une question ? Contactez FO <span>→</span></a>
+    <section class="section rights-section" id="droits">
+      <div class="rights-heading">
+        <div class="rights-heading-copy"><span class="eyebrow" data-homepage="rights_eyebrow">Mieux connaître vos droits</span><h2 data-homepage="rights_title">Vos droits au travail</h2></div>
+        <span class="rights-heading-mark" aria-hidden="true">§</span>
+      </div>
+      <p class="section-lead rights-lead" data-homepage="rights_lead">Des repères pratiques pour comprendre vos droits et savoir vers qui vous tourner. Les contenus détaillés seront publiés prochainement.</p>
+      <div class="rights-topics" aria-label="Thèmes liés à vos droits">
+        <article class="rights-topic"><span aria-hidden="true">€</span><div><small>01 · RÉMUNÉRATION</small><h3>Salaire et rémunération</h3></div></article>
+        <article class="rights-topic"><span aria-hidden="true">◷</span><div><small>02 · TEMPS DE TRAVAIL</small><h3>Horaires et congés</h3></div></article>
+        <article class="rights-topic"><span aria-hidden="true">◎</span><div><small>03 · CONDITIONS DE TRAVAIL</small><h3>Santé et conditions de travail</h3></div></article>
+        <article class="rights-topic"><span aria-hidden="true">§</span><div><small>04 · ACCOMPAGNEMENT</small><h3>Information et recours</h3></div></article>
+      </div>
+      <div class="rights-contact"><div><strong>Une question sur votre situation ?</strong><p>L’équipe FO est à votre écoute pour vous informer et vous accompagner.</p></div><a class="button button-red" href="/contact">Contacter FO <span>→</span></a></div>
     </section>
 
     <section class="section light-section survey-section" id="questionnaires">
