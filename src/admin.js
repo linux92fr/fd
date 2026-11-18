@@ -92,6 +92,56 @@ function emailVerification(message = '', initialEmail = '') {
     }
   });
 }
+function passwordMeetsPolicy(password) {
+  return password.length >= 12 &&
+    /[a-z]/.test(password) &&
+    /[A-Z]/.test(password) &&
+    /[0-9]/.test(password) &&
+    /[^A-Za-z0-9]/.test(password);
+}
+function generateSecurePassword(length = 20) {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%*-_+=?';
+  const limit = 256 - (256 % chars.length);
+  let result = '';
+  while (result.length < length) {
+    const bytes = new Uint8Array(length * 2);
+    crypto.getRandomValues(bytes);
+    for (const byte of bytes) {
+      if (byte < limit) result += chars[byte % chars.length];
+      if (result.length === length) break;
+    }
+  }
+  return result;
+}
+function attachPasswordTools(form, passwordInput, confirmInput) {
+  const generator = form.querySelector('[data-generate-password]');
+  const strength = form.querySelector('[data-password-strength]');
+  const update = () => {
+    const value = passwordInput.value;
+    if (!strength) return;
+    const checks = [
+      value.length >= 12,
+      /[a-z]/.test(value),
+      /[A-Z]/.test(value),
+      /[0-9]/.test(value),
+      /[^A-Za-z0-9]/.test(value)
+    ];
+    const score = checks.filter(Boolean).length;
+    strength.textContent = !value ? '12 caractères minimum, avec majuscule, minuscule, chiffre et caractère spécial.' :
+      (score === 5 ? 'Mot de passe robuste' : 'Robustesse : ' + score + '/5 critères');
+  };
+  passwordInput.addEventListener('input', update);
+  if (generator) generator.addEventListener('click', () => {
+    const generated = generateSecurePassword();
+    passwordInput.value = generated;
+    if (confirmInput) confirmInput.value = generated;
+    passwordInput.type = 'text';
+    update();
+    passwordInput.dispatchEvent(new Event('input', { bubbles: true }));
+    generator.textContent = 'Mot de passe généré';
+  });
+  update();
+}
 function initialPasswordSetup(initialEmail = '', message = '') {
   frame('<section class="admin-panel admin-login"><span class="eyebrow">Première connexion</span><h1>Définir mon mot de passe</h1><p>Saisissez l’adresse e-mail utilisée par l’administrateur pour créer votre compte. Un code de vérification à usage unique vous sera envoyé.</p><form id="initial-password-request"><label>Adresse e-mail<input name="email" type="email" value="' + esc(initialEmail) + '" required autocomplete="email"></label><button class="button button-red">Recevoir un code</button><p class="admin-message" role="status">' + esc(message) + '</p></form><button type="button" id="back-login" class="text-button">← Retour à la connexion</button></section>');
   root.querySelector('#back-login').onclick = () => login();
@@ -110,7 +160,9 @@ function initialPasswordSetup(initialEmail = '', message = '') {
   });
 }
 function initialPasswordVerify(email, message = '') {
-  frame('<section class="admin-panel admin-login"><span class="eyebrow">Vérification sécurisée</span><h1>Choisir mon mot de passe</h1><p>Un code à usage unique a été envoyé à <strong>' + esc(email) + '</strong>. Saisissez-le puis choisissez votre mot de passe personnel.</p><form id="initial-password-verify"><label>Code reçu<input name="otp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" required></label><label>Nouveau mot de passe<input name="password" type="password" minlength="8" required autocomplete="new-password"></label><label>Confirmer le mot de passe<input name="confirm" type="password" minlength="8" required autocomplete="new-password"></label><button class="button button-red">Valider et définir mon mot de passe</button><p class="admin-message" role="status">' + esc(message) + '</p></form><button type="button" id="resend-code" class="text-button">Renvoyer un code</button></section>');
+  frame('<section class="admin-panel admin-login"><span class="eyebrow">Vérification sécurisée</span><h1>Choisir mon mot de passe</h1><p>Un code à usage unique a été envoyé à <strong>' + esc(email) + '</strong>. Saisissez-le puis choisissez votre mot de passe personnel.</p><form id="initial-password-verify"><label>Code reçu<input name="otp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" required></label><label>Nouveau mot de passe<input name="password" type="password" minlength="12" required autocomplete="new-password"></label><button type="button" class="button button-outline-dark" data-generate-password>Générer un mot de passe</button><p class="admin-hint" data-password-strength>12 caractères minimum, avec majuscule, minuscule, chiffre et caractère spécial.</p><label>Confirmer le mot de passe<input name="confirm" type="password" minlength="12" required autocomplete="new-password"></label><button class="button button-red">Valider et définir mon mot de passe</button><p class="admin-message" role="status">' + esc(message) + '</p></form><button type="button" id="resend-code" class="text-button">Renvoyer un code</button></section>');
+  const initialForm = root.querySelector('#initial-password-verify');
+  attachPasswordTools(initialForm, initialForm.elements.password, initialForm.elements.confirm);
   root.querySelector('#resend-code').onclick = () => initialPasswordSetup(email);
   root.querySelector('#initial-password-verify').addEventListener('submit', async e => {
     e.preventDefault();
@@ -118,6 +170,7 @@ function initialPasswordVerify(email, message = '') {
     const otp = String(values.get('otp') || '').trim();
     const password = String(values.get('password') || '');
     const messageNode = form.querySelector('.admin-message');
+    if (!passwordMeetsPolicy(password)) { messageNode.textContent = 'Utilisez au moins 12 caractères avec une majuscule, une minuscule, un chiffre et un caractère spécial.'; return; }
     if (password !== values.get('confirm')) { messageNode.textContent = 'Les deux mots de passe ne correspondent pas.'; return; }
     const button = form.querySelector('button'); button.disabled = true;
     try {
@@ -159,13 +212,16 @@ function passwordReset() {
     passwordRequest('', authError ? 'Le lien est invalide ou expiré. Vous pouvez demander un nouvel e-mail.' : 'Le lien de réinitialisation est incomplet.');
     return;
   }
-  frame('<section class="admin-panel admin-login"><span class="eyebrow">Sécurisation du compte</span><h1>Choisir un nouveau mot de passe</h1><form id="password-reset"><label>Nouveau mot de passe<input name="password" type="password" minlength="8" required autocomplete="new-password"></label><label>Confirmer le mot de passe<input name="confirm" type="password" minlength="8" required autocomplete="new-password"></label><button class="button button-red">Enregistrer le nouveau mot de passe</button><p class="admin-message" role="status"></p></form></section>');
-  root.querySelector('#password-reset').addEventListener('submit', async e => {
+  frame('<section class="admin-panel admin-login"><span class="eyebrow">Sécurisation du compte</span><h1>Choisir un nouveau mot de passe</h1><form id="password-reset"><label>Nouveau mot de passe<input name="password" type="password" minlength="12" required autocomplete="new-password"></label><button type="button" class="button button-outline-dark" data-generate-password>Générer un mot de passe</button><p class="admin-hint" data-password-strength>12 caractères minimum, avec majuscule, minuscule, chiffre et caractère spécial.</p><label>Confirmer le mot de passe<input name="confirm" type="password" minlength="12" required autocomplete="new-password"></label><button class="button button-red">Enregistrer le nouveau mot de passe</button><p class="admin-message" role="status"></p></form></section>');
+  const resetForm = root.querySelector('#password-reset');
+  attachPasswordTools(resetForm, resetForm.elements.password, resetForm.elements.confirm);
+  resetForm.addEventListener('submit', async e => {
     e.preventDefault();
     const form = e.currentTarget;
     const values = new FormData(form);
     const password = values.get('password');
     const message = form.querySelector('.admin-message');
+    if (!passwordMeetsPolicy(password)) { message.textContent = 'Utilisez au moins 12 caractères avec une majuscule, une minuscule, un chiffre et un caractère spécial.'; return; }
     if (password !== values.get('confirm')) { message.textContent = 'Les deux mots de passe ne correspondent pas.'; return; }
     const button = form.querySelector('button');
     button.disabled = true;
