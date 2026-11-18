@@ -345,11 +345,47 @@ function slugify(value) {
     .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 180);
 }
 
+
+function escapeEmailHtml(value) {
+  return String(value || "").replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function renderAccountEmail(type, name) {
+  const safeName = String(name || "").trim().slice(0, 120);
+  const greeting = safeName ? "Bonjour " + safeName + "," : "Bonjour,";
+  const common = '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#25262b;line-height:1.6"><div style="background:#c8102e;color:#fff;padding:22px 28px;font-size:20px;font-weight:bold">FO Free Distribution</div><div style="padding:28px">';
+  const footer = '<p style="margin-top:28px;color:#666;font-size:13px">FO Free Distribution<br><a href="https://fd.focom-iliad.fr" style="color:#c8102e">fd.focom-iliad.fr</a></p></div></div>';
+  if (type === "welcome") {
+    const subject = "Bienvenue sur l’espace FO Free Distribution";
+    const intro = "Votre compte a bien été créé. Il reste à vérifier votre adresse e-mail si cette étape vous est demandée, puis à attendre l’activation de votre accès par l’équipe FO.";
+    const html = common + '<p>' + escapeEmailHtml(greeting) + '</p><h1 style="font-size:24px">Bienvenue !</h1><p>' + intro + '</p><p>Vous recevrez un autre message lorsque votre accès sera activé. En attendant, aucune action supplémentaire n’est nécessaire.</p>' + footer;
+    const text = greeting + "\n\nBienvenue sur l’espace FO Free Distribution.\n\n" + intro + "\n\nVous recevrez un autre message lorsque votre accès sera activé.";
+    return { subject, html, text };
+  }
+  if (type === "activation") {
+    const subject = "Votre accès à l’espace FO Free Distribution est activé";
+    const intro = "Un administrateur vient d’activer votre compte. Vous pouvez désormais vous connecter à votre espace FO Free Distribution.";
+    const html = common + '<p>' + escapeEmailHtml(greeting) + '</p><h1 style="font-size:24px">Votre compte est activé</h1><p>' + intro + '</p><p style="margin:26px 0"><a href="https://fd.focom-iliad.fr/admin" style="display:inline-block;background:#c8102e;color:#fff;text-decoration:none;padding:12px 20px;border-radius:5px;font-weight:bold">Accéder à mon espace</a></p>' + footer;
+    const text = greeting + "\n\nVotre compte est activé.\n\n" + intro + "\n\nConnexion : https://fd.focom-iliad.fr/admin";
+    return { subject, html, text };
+  }
+  return null;
+}
+
 async function handleAdmin(request, env, url, origin) {
   const access = await requireSiteAccess(request, env);
   if (access.denied) return json({ error: access.denied }, 401, origin);
   const admin = access.user;
   const isAdmin = admin.role === "admin";
+  if (url.pathname === "/api/admin/account-email-preview" && request.method === "GET") {
+    if (!isAdmin) return json({ error: "SUPER_ADMIN_REQUIRED" }, 403, origin);
+    const type = url.searchParams.get("type") || "";
+    const name = url.searchParams.get("name") || "";
+    const email = renderAccountEmail(type, name);
+    if (!email) return json({ error: "INVALID_EMAIL_TEMPLATE" }, 400, origin);
+    return json({ previewOnly: true, sender: { name: "FO Free Distribution", email: "contact@focom-iliad.fr" }, ...email }, 200, origin);
+  }
   const isEditor = admin.role === "editor";
   const editorAllowed = url.pathname === "/api/admin/articles" || url.pathname === "/api/admin/overview" || /^\/api\/admin\/articles\/\d+$/.test(url.pathname);
   if (admin.role === "employee" || (isEditor && !editorAllowed)) return json({ error: "INSUFFICIENT_PERMISSIONS" }, 403, origin);
