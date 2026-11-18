@@ -420,7 +420,7 @@ function renderOtpEmail(payload) {
   }
 
   const html = '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#25262b;line-height:1.6"><div style="background:#c8102e;color:#fff;padding:22px 28px;font-size:20px;font-weight:bold">FO Free Distribution</div><div style="padding:28px"><p>' + greeting + '</p><h1 style="font-size:24px">' + title + '</h1><p>' + explanation + '</p><p style="margin:24px 0;padding:18px;background:#f4f4f5;text-align:center;font-size:32px;font-weight:bold;letter-spacing:8px">' + code + '</p>' + extra + '<p>Ce code est à usage unique. Ne le communiquez à personne.</p><p style="color:#666;font-size:13px">FO Free Distribution · <a href="https://fd.focom-iliad.fr">fd.focom-iliad.fr</a></p></div></div>';
-  const text = greeting.replace(/<[^>]+>/g, "") + "\n\n" + title + "\n\n" + explanation + "\n\\nCode : " + code + (type === "email-verification" ? "\n\\nImportant : la vérification de votre adresse e-mail ne vaut pas approbation de votre compte. Votre accès restera en attente jusqu’à validation par un administrateur FO." : "") + "\n\\nCe code est à usage unique. Ne le communiquez à personne.\\nFO Free Distribution";
+  const text = greeting.replace(/<[^>]+>/g, "") + "\n\n" + title + "\n\n" + explanation + "\n\nCode : " + code + (type === "email-verification" ? "\n\\nImportant : la vérification de votre adresse e-mail ne vaut pas approbation de votre compte. Votre accès restera en attente jusqu’à validation par un administrateur FO." : "") + "\n\\nCe code est à usage unique. Ne le communiquez à personne.\nFO Free Distribution";
   return { email, subject, html, text };
 }
 
