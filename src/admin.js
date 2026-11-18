@@ -183,11 +183,19 @@ async function homepagePage() {
       ['hero_secondary_label','Bouton secondaire — texte'],['hero_secondary_url','Bouton secondaire — lien'],
       ['intro_eyebrow','Engagement — petit titre'],['intro_title','Engagement — titre'],['intro_text','Engagement — texte'],
       ['news_eyebrow','Actualités — petit titre'],['news_title','Actualités — titre'],['news_note','Actualités — texte complémentaire'],
-      ['claims_eyebrow','Revendications — petit titre'],['claims_title','Revendications — titre'],['claims_lead','Revendications — introduction'],
+      ['claims_eyebrow','Revendications — petit titre'],['claims_title','Revendications — titre'],['claims_note','Revendications — texte complémentaire'],['claims_lead','Revendications — introduction'],
       ['rights_eyebrow','Droits — petit titre'],['rights_title','Droits — titre'],['rights_lead','Droits — introduction'],
       ['survey_eyebrow','Questionnaire — petit titre'],['survey_title','Questionnaire — titre'],['survey_text','Questionnaire — introduction']
     ];
-    frame('<div class="admin-title-row"><div><span class="eyebrow">Contenu du site</span><h1>Page d’accueil</h1><p>Modifiez les textes principaux affichés sur la page d’accueil. Les articles, revendications détaillées et questions du questionnaire restent gérés dans leurs espaces respectifs.</p></div><button id="logout" class="button button-outline-dark">Déconnexion</button></div><section class="admin-panel"><div class="admin-toolbar"><h2>Textes de la page d’accueil</h2><button id="back-dashboard" class="button button-outline-dark">← Tableau de bord</button></div><form id="homepage-form" class="admin-form-grid">' + fields.map(([key,label]) => '<label>' + esc(label) + (key.endsWith('_text') || key.endsWith('_lead') || key.endsWith('_title') ? '<textarea name="' + key + '" rows="' + (key.endsWith('_title') ? '2' : '4') + '">' + esc(content[key] || '') + '</textarea>' : '<input name="' + key + '" value="' + esc(content[key] || '') + '">') + '</label>').join('') + '<div class="admin-form-actions"><button class="button button-red" type="submit">Enregistrer les modifications</button><button class="button button-outline-dark" type="button" id="reset-homepage">Recharger les textes actuels</button></div><p class="admin-message" id="homepage-status" role="status"></p></form></section><section class="admin-panel homepage-preview-panel"><div class="admin-toolbar"><div><span class="eyebrow">Aperçu instantané</span><h2>Rendu de l’accueil</h2></div><span class="preview-status">Non publié tant que vous n’enregistrez pas</span></div><div class="homepage-preview"><div class="homepage-preview-copy"><span class="preview-category" id="home-preview-eyebrow"></span><h2 id="home-preview-title"></h2><p id="home-preview-text"></p><div class="homepage-preview-buttons"><span class="button button-red" id="home-preview-primary"></span><span class="button button-outline-dark" id="home-preview-secondary"></span></div></div><div class="homepage-preview-art"><span>FO</span><small>FREE DISTRIBUTIONS</small></div></div></section>');
+    frame('<div class="admin-title-row"><div><span class="eyebrow">Contenu du site</span><h1>Page d’accueil</h1><p>Modifiez les textes principaux affichés sur la page d’accueil. Les articles, revendications détaillées et questions du questionnaire restent gérés dans leurs espaces respectifs.</p></div><button id="logout" class="button button-outline-dark">Déconnexion</button></div><section class="admin-panel"><div class="admin-toolbar"><h2>Textes de la page d’accueil</h2><button id="back-dashboard" class="button button-outline-dark">← Tableau de bord</button></div><form id="homepage-form" class="admin-form-grid">' + fields.map(([key,label]) => '<label>' + esc(label) + (key.endsWith('_text') || key.endsWith('_lead') || key.endsWith('_title') ? '<textarea name="' + key + '" rows="' + (key.endsWith('_title') ? '2' : '4') + '">' + esc(content[key] || '') + '</textarea>' : '<input name="' + key + '" value="' + esc(content[key] || '') + '">') + '</label>').join('') + '<div class="admin-form-actions"><button class="button button-red" type="submit">Enregistrer les modifications</button><button class="button button-outline-dark" type="button" id="reset-homepage">Recharger les textes actuels</button></div><p class="admin-message" id="homepage-status" role="status"></p></form></section><section class="admin-panel homepage-preview-panel"><div class="admin-toolbar"><div><span class="eyebrow">Aperçu instantané</span><h2>Rendu de l’accueil</h2></div><span class="preview-status">Non publié tant que vous n’enregistrez pas</span></div>
+      <div class="homepage-preview"><div class="homepage-preview-copy"><span class="preview-category" id="home-preview-eyebrow"></span><h2 id="home-preview-title"></h2><p id="home-preview-text"></p><div class="homepage-preview-buttons"><span class="button button-red" id="home-preview-primary"></span><span class="button button-outline-dark" id="home-preview-secondary"></span></div></div><div class="homepage-preview-art"><span>FO</span><small>FREE DISTRIBUTIONS</small></div></div>
+      <div class="homepage-preview-sections">
+        <article class="homepage-preview-section"><span class="eyebrow" id="home-preview-intro-eyebrow"></span><h3 id="home-preview-intro-title"></h3><p id="home-preview-intro-text"></p></article>
+        <article class="homepage-preview-section"><span class="eyebrow" id="home-preview-news-eyebrow"></span><h3 id="home-preview-news-title"></h3><p id="home-preview-news-note"></p><small>Les articles publiés apparaîtront ici.</small></article>
+        <article class="homepage-preview-section"><span class="eyebrow" id="home-preview-claims-eyebrow"></span><h3 id="home-preview-claims-title"></h3><p class="homepage-preview-note" id="home-preview-claims-note"></p><p id="home-preview-claims-lead"></p><small>Les cartes de revendications détaillées restent inchangées.</small></article>
+        <article class="homepage-preview-section"><span class="eyebrow" id="home-preview-rights-eyebrow"></span><h3 id="home-preview-rights-title"></h3><p id="home-preview-rights-lead"></p></article>
+        <article class="homepage-preview-section homepage-preview-survey"><span class="eyebrow" id="home-preview-survey-eyebrow"></span><h3 id="home-preview-survey-title"></h3><p id="home-preview-survey-text"></p><span class="homepage-preview-tag">Questionnaire anonyme</span></article>
+      </div></section>');
     root.querySelector('#logout').onclick = async () => { await auth.signOut(); login('Vous êtes déconnecté.'); };
     root.querySelector('#back-dashboard').onclick = () => dashboard();
     root.querySelector('#reset-homepage').onclick = () => homepagePage();
@@ -201,6 +209,19 @@ async function homepagePage() {
       const secondary = root.querySelector('#home-preview-secondary');
       secondary.textContent = value('hero_secondary_label');
       secondary.hidden = !value('hero_secondary_label').trim();
+      const previewFields = {
+        intro: ['intro_eyebrow','intro_title','intro_text'],
+        news: ['news_eyebrow','news_title','news_note'],
+        claims: ['claims_eyebrow','claims_title','claims_note','claims_lead'],
+        rights: ['rights_eyebrow','rights_title','rights_lead'],
+        survey: ['survey_eyebrow','survey_title','survey_text']
+      };
+      for (const [section, keys] of Object.entries(previewFields)) {
+        keys.forEach(key => {
+          const node = root.querySelector('#home-preview-' + key.replace('_','-'));
+          if (node) node.textContent = value(key);
+        });
+      }
     };
     form.addEventListener('input', preview);
     preview();
