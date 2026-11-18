@@ -360,3 +360,58 @@
   #homepage-form.admin-form-grid{gap:16px}
   #homepage-form.admin-form-grid>label{padding:15px}
 }
+
+
+/* Homepage live preview in administration */
+.homepage-preview-panel{margin-top:28px}
+.homepage-preview{
+  display:grid;
+  grid-template-columns:minmax(0,1.5fr) minmax(180px,.7fr);
+  gap:28px;
+  align-items:center;
+  margin-top:20px;
+  padding:clamp(22px,4vw,42px);
+  border:1px solid #e7e7ec;
+  border-radius:13px;
+  background:linear-gradient(135deg,#fff 0%,#f7f7fa 100%);
+  overflow:hidden;
+}
+.homepage-preview-copy{min-width:0}
+.homepage-preview-copy .preview-category{margin-bottom:15px}
+.homepage-preview-copy h2{
+  margin:0 0 16px;
+  color:var(--ink);
+  font-family:Manrope,sans-serif;
+  font-size:clamp(27px,4vw,42px);
+  line-height:1.13;
+  letter-spacing:-1px;
+  white-space:pre-line;
+  overflow-wrap:anywhere;
+}
+.homepage-preview-copy p{
+  margin:0;
+  color:var(--muted);
+  font-size:15px;
+  line-height:1.8;
+  white-space:pre-line;
+  overflow-wrap:anywhere;
+}
+.homepage-preview-buttons{display:flex;flex-wrap:wrap;gap:10px;margin-top:24px}
+.homepage-preview-buttons .button{display:inline-flex;align-items:center;justify-content:center;min-height:42px;pointer-events:none}
+.homepage-preview-buttons [hidden]{display:none}
+.homepage-preview-art{
+  min-height:190px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  border-radius:12px;
+  background:linear-gradient(145deg,#24252b,#41434b);
+  color:#fff;
+}
+.homepage-preview-art span{font-family:Manrope,sans-serif;font-size:clamp(72px,10vw,112px);font-weight:900;line-height:1;color:#fff}
+.homepage-preview-art small{margin-top:10px;font-size:10px;font-weight:800;letter-spacing:2px;color:#f1cbd1}
+@media(max-width:700px){
+  .homepage-preview{grid-template-columns:1fr;gap:20px}
+  .homepage-preview-art{min-height:130px}
+}
