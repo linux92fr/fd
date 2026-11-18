@@ -481,3 +481,18 @@
 .homepage-preview-structure span,.homepage-preview-structure small{font-size:11px;line-height:1.5;color:var(--muted)}
 .homepage-preview-structure>small{grid-column:1/-1}
 @media(max-width:700px){.preview-claim-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.homepage-preview-structure{grid-template-columns:1fr}.homepage-preview-structure>small{grid-column:auto}}
+
+
+/* Visuels configurables de la page d’accueil */
+.homepage-managed-image{display:block;width:100%;max-height:320px;object-fit:cover;border-radius:18px;margin:0 0 24px}
+.homepage-managed-image-hero{height:100%;max-height:460px;margin:0;position:absolute;inset:0;border-radius:24px}
+.hero-visual{position:relative;overflow:hidden}
+.hero-visual .store,.hero-visual .visual-caption{position:relative;z-index:1}
+.homepage-image-manager{grid-column:1/-1;border-top:1px solid var(--border,#ddd);padding-top:24px;margin-top:12px}
+.homepage-image-manager h3{margin:0 0 8px}
+.homepage-image-manager>p{color:var(--muted);margin:0 0 18px}
+.homepage-image-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+.homepage-image-field{display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding:14px;border:1px solid var(--border,#ddd);border-radius:12px}
+.homepage-image-preview{width:100%;height:125px;border-radius:8px;background:#f3f3f3;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#666;font-size:13px}
+.homepage-image-preview img{width:100%;height:100%;object-fit:cover}
+.homepage-image-field .button{font-size:13px;padding:9px 12px}
