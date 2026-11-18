@@ -391,6 +391,49 @@ async function handleAdmin(request, env, url, origin) {
   if (admin.role === "employee" || (isEditor && !editorAllowed)) return json({ error: "INSUFFICIENT_PERMISSIONS" }, 403, origin);
 
 
+  if (url.pathname === "/api/admin/users" && request.method === "POST") {
+    if (!isAdmin) return json({ error: "SUPER_ADMIN_REQUIRED" }, 403, origin);
+    let body;
+    try { body = await request.json(); } catch { return json({ error: "INVALID_JSON" }, 400, origin); }
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+    const role = body.role || "employee";
+    if (!name || name.length > 120 || email.length > 254 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) ||
+        !["employee", "editor", "admin"].includes(role)) {
+      return json({ error: "INVALID_USER_FIELDS", message: "Vérifiez le nom, l’adresse e-mail et le rôle." }, 400, origin);
+    }
+    if (!env.NEON_API_KEY) return json({ error: "NEON_API_KEY_MISSING", message: "La clé API Neon n’est pas configurée sur ce Worker." }, 503, origin);
+    try {
+      const neonResponse = await fetch("https://console.neon.tech/api/v2/projects/delicate-lake-24433548/branches/br-sweet-hill-b9ydsrhy/auth/users", {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + env.NEON_API_KEY, "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({ email, name }),
+      });
+      const neonData = await neonResponse.json().catch(() => ({}));
+      if (!neonResponse.ok) {
+        const duplicate = neonResponse.status === 409 || /already exists|duplicate/i.test(String(neonData.message || neonData.error || ""));
+        return json({ error: duplicate ? "USER_ALREADY_EXISTS" : "NEON_USER_CREATE_FAILED", message: duplicate ? "Un compte existe déjà pour cette adresse e-mail." : "Neon n’a pas pu créer le compte. Vérifiez la configuration de la clé API." }, duplicate ? 409 : 502, origin);
+      }
+      if (!neonData.id) return json({ error: "NEON_INVALID_RESPONSE" }, 502, origin);
+      try {
+        await withDatabase(env, db => db.query(
+          `INSERT INTO public.site_user_access (user_id, role, status, approved_by, approved_at, updated_at)
+           VALUES ($1, $2, 'pending', $3, NULL, now())
+           ON CONFLICT (user_id) DO UPDATE SET role = EXCLUDED.role, status = 'pending',
+             approved_by = EXCLUDED.approved_by, approved_at = NULL, updated_at = now()`,
+          [neonData.id, role, admin.id]
+        ));
+      } catch (dbError) {
+        console.error("Site access record creation failed after Neon user creation:", dbError?.code || dbError?.name || "unknown");
+        return json({ error: "USER_CREATED_ACCESS_PENDING", message: "Le compte d’authentification a été créé, mais son accès au site n’a pas pu être initialisé. Ne relancez pas la création ; actualisez la liste et contactez l’administrateur." }, 503, origin);
+      }
+      return json({ success: true, user: { id: neonData.id, name, email, role, status: "pending" }, emailSent: false }, 201, origin);
+    } catch (error) {
+      console.error("Neon user creation request failed:", error?.name || "unknown");
+      return json({ error: "NEON_API_UNAVAILABLE", message: "Le service de création de compte est momentanément indisponible." }, 503, origin);
+    }
+  }
+
   if (url.pathname === "/api/admin/users" && request.method === "GET") {
     const r = await withDatabase(env, db => db.query(
       `SELECT u.id, u.name, u.email, u."emailVerified" AS email_verified, u."createdAt" AS created_at,
