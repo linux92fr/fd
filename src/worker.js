@@ -586,8 +586,14 @@ export default {
           '<meta name="twitter:card" content="' + (article.cover_image_url ? "summary_large_image" : "summary") + '">' +
           '<meta name="twitter:title" content="' + title + '">' +
           '<meta name="twitter:description" content="' + description + '">';
-        const page = await env.ASSETS.fetch(new Request(new URL("/index.html", request.url), request));
-        const html = (await page.text()).replace("</head>", tags + "</head>");
+        const page = await env.ASSETS.fetch(new Request(new URL("/index.html", request.url).toString(), {
+          method: "GET",
+          headers: request.headers,
+        }));
+        if (!page.ok) throw new Error("ASSET_INDEX_UNAVAILABLE_" + page.status);
+        const sourceHtml = await page.text();
+        if (!sourceHtml || !/<!doctype html>/i.test(sourceHtml)) throw new Error("ASSET_INDEX_INVALID_HTML");
+        const html = sourceHtml.replace("</head>", tags + "</head>");
         return new Response(html, { status: 200, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300" } });
       } catch (error) {
         console.error("Article SEO page failed:", error.message);
