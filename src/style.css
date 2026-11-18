@@ -514,7 +514,7 @@
 .intro-pillars{display:flex;flex-wrap:wrap;gap:10px;margin-top:28px}
 .intro-pillars span{display:flex;align-items:center;gap:9px;padding:10px 13px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:12px;font-weight:700}
 .intro-pillars b{color:var(--red);font-size:11px}
-.intro-visual .intro-custom-image{position:absolute;inset:0;width:100%;height:100%;max-height:none;object-fit:cover;border-radius:0;margin:0;z-index:2}
+.intro-visual .intro-custom-image{position:absolute;inset:0;width:100%;height:100%;max-height:none;object-fit:contain;object-position:center;background:#fff;border-radius:0;margin:0;z-index:2}
 .intro.has-custom-image .intro-visual-symbol,.intro.has-custom-image .intro-visual>span,.intro.has-custom-image .intro-visual>small{display:none}
 @media(max-width:760px){.intro.section{grid-template-columns:1fr;gap:28px;padding-top:56px;padding-bottom:56px}.intro-visual{min-height:230px}.intro-pillars{display:grid;grid-template-columns:1fr}.intro-copy h2{font-size:clamp(30px,8vw,42px)}}
 
