@@ -560,7 +560,7 @@ export default {
       }
     }
 
-    const seoArticleMatch = url.pathname.match(/^\\/actualites\\/([a-z0-9-]+)\\/?$/i);
+    const seoArticleMatch = url.pathname.match(new RegExp("^/actualites/([a-z0-9-]+)/?$", "i"));
     if (seoArticleMatch && request.method === "GET") {
       try {
         const slug = decodeURIComponent(seoArticleMatch[1]);
@@ -571,7 +571,7 @@ export default {
         if (!result.rows.length) return new Response("Article introuvable", { status: 404 });
         const article = result.rows[0];
         const escapeMeta = value => String(value || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-        const description = escapeMeta((article.excerpt || article.title).replace(/\\s+/g, " ").slice(0, 250));
+        const description = escapeMeta((article.excerpt || article.title).split(" ").join(" ").slice(0, 250));
         const title = escapeMeta(article.title + " – FO Free Distributions");
         const canonical = "https://fd.focom-iliad.fr/actualites/" + encodeURIComponent(slug);
         const image = article.cover_image_url ? '<meta property="og:image" content="' + escapeMeta(article.cover_image_url) + '">' : "";
