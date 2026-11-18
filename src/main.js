@@ -153,8 +153,44 @@ if (contactForm) {
           ${article.cover_image_url ? `<img class="article-detail-cover" src="${escapeArticle(article.cover_image_url)}" alt="">` : ''}
           ${article.excerpt ? `<p class="article-detail-excerpt">${escapeArticle(article.excerpt)}</p>` : ''}
           <div class="article-detail-content">${paragraphs}</div>
+          <section class="article-share" aria-label="Partager cet article">
+            <strong>Partager cet article</strong>
+            <div class="article-share-links">
+              <a href="https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(location.href)}" target="_blank" rel="noopener noreferrer" aria-label="Partager sur Facebook">Facebook</a>
+              <a href="https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(location.href)}" target="_blank" rel="noopener noreferrer" aria-label="Partager sur LinkedIn">LinkedIn</a>
+              <a href="https://api.whatsapp.com/send?text=${encodeURIComponent(article.title + ' ' + location.href)}" target="_blank" rel="noopener noreferrer" aria-label="Partager sur WhatsApp">WhatsApp</a>
+              <button class="article-copy-link" type="button">Copier le lien</button>
+            </div>
+            <p class="article-copy-status" role="status" aria-live="polite"></p>
+          </section>
+          <nav class="article-pagination" aria-label="Navigation entre les actualités"></nav>
           <a class="button button-outline" href="/#actualites">← Retour aux actualités</a>
         </article>`;
+      const copyButton = target.querySelector('.article-copy-link');
+      const copyStatus = target.querySelector('.article-copy-status');
+      copyButton.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(location.href);
+          copyStatus.textContent = 'Lien copié !';
+        } catch {
+          copyStatus.textContent = 'Copiez l’adresse de cette page depuis la barre du navigateur.';
+        }
+      });
+      try {
+        const listResponse = await fetch('/api/articles', { headers: { Accept: 'application/json' } });
+        const listData = await listResponse.json();
+        const published = Array.isArray(listData.articles) ? listData.articles : [];
+        const index = published.findIndex(item => item.slug === article.slug);
+        const previous = index > 0 ? published[index - 1] : null;
+        const next = index >= 0 && index < published.length - 1 ? published[index + 1] : null;
+        const pagination = target.querySelector('.article-pagination');
+        pagination.innerHTML = `
+          ${previous ? `<a class="article-page-link article-page-previous" href="/actualites/${encodeURIComponent(previous.slug)}"><small>Actualité plus récente</small><strong>← ${escapeArticle(previous.title)}</strong></a>` : '<span></span>'}
+          ${next ? `<a class="article-page-link article-page-next" href="/actualites/${encodeURIComponent(next.slug)}"><small>Actualité précédente</small><strong>${escapeArticle(next.title)} →</strong></a>` : ''}
+        `;
+      } catch (navigationError) {
+        console.warn('Navigation entre les articles indisponible:', navigationError);
+      }
       document.title = article.title + ' – FO Free Distributions';
     } catch (error) {
       target.innerHTML = `<div class="article-detail-error"><h1>Article indisponible</h1><p>${escapeArticle(error.message)}</p><a class="button button-outline" href="/#actualites">← Retour aux actualités</a></div data-homepage="claims_title">`;
