@@ -2,10 +2,9 @@ import { Client } from "pg";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 
 const allowedOrigins = new Set([
-  "https://fd.focom-iliad.fr",
-  "https://fd.linux92fr.workers.dev",
+  "https://fd-preview.linux92fr.workers.dev",
 ]);
-const AUTH_BASE_URL = "https://ep-sweet-resonance-b9ov2yaa.neonauth.c-7.eu-central-1.aws.neon.tech/neondb/auth";
+const AUTH_BASE_URL = "https://ep-crimson-wave-b972yi2i.neonauth.c-7.eu-central-1.aws.neon.tech/neondb/auth";
 const AUTH_JWKS = createRemoteJWKSet(new URL(AUTH_BASE_URL + "/.well-known/jwks.json"));
 const AUTH_ISSUER = new URL(AUTH_BASE_URL).origin;
 const ADMIN_EMAIL = "free-distri@focom-iliad.fr";
