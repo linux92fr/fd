@@ -438,8 +438,30 @@ async function handleNeonAuthWebhook(request, env) {
   }
 
   if (payload?.event_type !== "send.otp") return json({ success: true, ignored: true }, 200);
+  const eventId = typeof payload.event_id === "string" ? payload.event_id.trim() : "";
+  if (!eventId || eventId.length > 200) return json({ error: "INVALID_EVENT_ID" }, 400);
   const email = renderOtpEmail(payload);
   if (!email) return json({ error: "INVALID_OTP_EVENT" }, 400);
+
+  let claimed = false;
+  try {
+    const claim = await withDatabase(env, db => db.query(
+      "INSERT INTO public.neon_auth_webhook_events (event_id,event_type,status) VALUES ($1,'send.otp','processing') ON CONFLICT (event_id) DO NOTHING RETURNING event_id",
+      [eventId]
+    ));
+    claimed = claim.rows.length === 1;
+    if (!claimed) {
+      const existing = await withDatabase(env, db => db.query(
+        "SELECT status FROM public.neon_auth_webhook_events WHERE event_id=$1",
+        [eventId]
+      ));
+      if (existing.rows[0]?.status === "sent") return json({ success: true, duplicate: true }, 200);
+      return json({ error: "EVENT_ALREADY_PROCESSING" }, 503);
+    }
+  } catch (error) {
+    console.error("Neon webhook idempotency check failed:", error?.code || error?.name || "unknown");
+    return json({ error: "WEBHOOK_STORAGE_UNAVAILABLE" }, 503);
+  }
 
   try {
     const response = await fetch("https://api.brevo.com/v3/smtp/email", {
@@ -456,11 +478,19 @@ async function handleNeonAuthWebhook(request, env) {
     if (!response.ok) {
       const detail = await response.text();
       console.error("Neon OTP email delivery failed:", response.status, detail.slice(0, 300));
+      await withDatabase(env, db => db.query("DELETE FROM public.neon_auth_webhook_events WHERE event_id=$1 AND status='processing'", [eventId]));
       return json({ error: "EMAIL_DELIVERY_FAILED" }, 502);
     }
+    await withDatabase(env, db => db.query(
+      "UPDATE public.neon_auth_webhook_events SET status='sent',sent_at=now() WHERE event_id=$1 AND status='processing'",
+      [eventId]
+    ));
     return json({ success: true }, 200);
   } catch (error) {
     console.error("Neon OTP email request failed:", error?.name || "unknown");
+    if (claimed) {
+      await withDatabase(env, db => db.query("DELETE FROM public.neon_auth_webhook_events WHERE event_id=$1 AND status='processing'", [eventId])).catch(() => {});
+    }
     return json({ error: "EMAIL_PROVIDER_UNAVAILABLE" }, 502);
   }
 }
