@@ -257,6 +257,26 @@ document.querySelector('#app').innerHTML = `
       </div>
     </section>
 
+    <section class="section newsletter-signup-section" id="newsletter">
+      <div class="newsletter-signup-card">
+        <div class="newsletter-signup-copy">
+          <span class="eyebrow">Restez informés</span>
+          <h2>Recevez les actualités de <span>FO Free Distribution.</span></h2>
+          <p>Inscrivez-vous pour recevoir par e-mail nos informations syndicales, actualités, revendications et prochaines actions.</p>
+          <p class="newsletter-signup-note">Inscription gratuite. Vous pourrez vous désinscrire à tout moment depuis chaque newsletter.</p>
+        </div>
+        <form id="fd-newsletter-form" class="newsletter-signup-form">
+          <label for="newsletter-email">Votre adresse e-mail</label>
+          <input id="newsletter-email" name="email" type="email" maxlength="254" autocomplete="email" required placeholder="vous@exemple.fr">
+          <label class="newsletter-consent"><input name="consent_confirmed" type="checkbox" value="yes" required><span>J’accepte de recevoir la newsletter FO Free Distribution et confirme mon inscription.</span></label>
+          <div class="newsletter-honeypot" aria-hidden="true"><label>Ne pas remplir<input name="website" type="text" tabindex="-1" autocomplete="off"></label></div>
+          <button class="button button-red" type="submit">Je m’inscris à la newsletter <span>→</span></button>
+          <p class="newsletter-signup-privacy">Votre adresse sera utilisée uniquement pour l’envoi de la newsletter FO. Elle ne sera pas publiée ni communiquée à des tiers à des fins commerciales.</p>
+          <p id="newsletter-signup-message" class="newsletter-signup-message" role="status" aria-live="polite"></p>
+        </form>
+      </div>
+    </section>
+
     <section class="section claims-section" id="revendications">
       <div class="section-heading">
         <div><span class="eyebrow" data-homepage="claims_eyebrow">Élections professionnelles · FO Free Distribution</span><h2 data-homepage="claims_title">Nos revendications</h2></div>
@@ -397,6 +417,44 @@ document.querySelector('#app').innerHTML = `
 
 
 installBackToTop();
+
+
+// Public newsletter signup: explicit consent is required; the Worker never sends a welcome email.
+const newsletterForm = document.querySelector('#fd-newsletter-form');
+if (newsletterForm) {
+  const newsletterStatus = document.querySelector('#newsletter-signup-message');
+  newsletterForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const submit = newsletterForm.querySelector('button[type="submit"]');
+    const data = new FormData(newsletterForm);
+    submit.disabled = true;
+    submit.textContent = 'Inscription en cours…';
+    newsletterStatus.textContent = '';
+    newsletterStatus.className = 'newsletter-signup-message';
+    try {
+      const response = await fetch('/api/newsletter/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({
+          email: String(data.get('email') || ''),
+          consent_confirmed: data.get('consent_confirmed') === 'yes',
+          website: String(data.get('website') || ''),
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.ok) throw new Error(result.message || 'Impossible de finaliser votre inscription.');
+      newsletterForm.reset();
+      newsletterStatus.textContent = result.message || 'Votre inscription à la newsletter FO est bien enregistrée.';
+      newsletterStatus.className = 'newsletter-signup-message is-success';
+    } catch (error) {
+      newsletterStatus.textContent = error.message || 'Une erreur est survenue. Merci de réessayer.';
+      newsletterStatus.className = 'newsletter-signup-message is-error';
+    } finally {
+      submit.disabled = false;
+      submit.innerHTML = 'Je m’inscris à la newsletter <span>→</span>';
+    }
+  });
+}
 
 const toggle = document.querySelector('.menu-toggle');
 const menu = document.querySelector('.main-nav');

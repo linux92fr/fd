@@ -57,6 +57,37 @@ async function requireSurveyAdmin(request) {
 }
 
 
+async function handleNewsletterSubscribe(request, env) {
+  const origin = request.headers.get("Origin") || "";
+  if (!allowedOrigins.has(origin)) return json({ error: "INVALID_ORIGIN" }, 403, origin);
+  if (request.headers.get("content-type")?.split(";")[0].trim() !== "application/json") {
+    return json({ error: "INVALID_CONTENT_TYPE" }, 415, origin);
+  }
+  let body;
+  try { body = await request.json(); } catch { return json({ error: "INVALID_JSON" }, 400, origin); }
+  if (typeof body.website === "string" && body.website.trim()) {
+    return json({ ok: true, message: "Votre demande d’inscription a bien été prise en compte." }, 200, origin);
+  }
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return json({ error: "INVALID_EMAIL", message: "Vérifiez votre adresse e-mail." }, 400, origin);
+  }
+  if (body.consent_confirmed !== true) {
+    return json({ error: "EXPLICIT_CONSENT_REQUIRED", message: "Cochez la case pour confirmer votre inscription à la newsletter." }, 400, origin);
+  }
+  try {
+    const result = await withDatabase(env, db => db.query(
+      "INSERT INTO public.newsletter_subscribers AS existing(email,status,subscribed_at,unsubscribed_at) VALUES($1,'subscribed',NOW(),NULL) ON CONFLICT(email) DO UPDATE SET status='subscribed',subscribed_at=NOW(),unsubscribed_at=NULL WHERE existing.status='subscribed' OR $2::boolean RETURNING id,status",
+      [email, body.consent_confirmed]
+    ));
+    if (!result.rows[0]) return json({ error: "RECONSENT_REQUIRED", message: "Cette adresse est désinscrite. Une nouvelle confirmation explicite est nécessaire." }, 409, origin);
+    return json({ ok: true, message: "Votre inscription à la newsletter FO Free Distribution est bien enregistrée." }, 200, origin);
+  } catch (error) {
+    console.error("Newsletter subscription failed:", error?.code || error?.name || "unknown");
+    return json({ error: "SUBSCRIPTION_UNAVAILABLE", message: "L’inscription n’a pas pu être enregistrée. Merci de réessayer ultérieurement." }, 503, origin);
+  }
+}
+
 async function handleContact(request, env) {
   const origin = request.headers.get("Origin") || "";
   if (!allowedOrigins.has(origin)) return json({ error: "INVALID_ORIGIN" }, 403, origin);
@@ -781,6 +812,8 @@ export default {
         return json({ error: "ARTICLES_UNAVAILABLE" }, 503, origin);
       }
     }
+
+    if (url.pathname === "/api/newsletter/subscribe" && request.method === "POST") return handleNewsletterSubscribe(request, env);
 
     if (url.pathname === "/api/contact" && request.method === "POST") return handleContact(request, env);
 
