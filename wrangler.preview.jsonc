@@ -1,0 +1,31 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "fd-preview",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-11-17",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "2255a1cfe7ce456e9cee25d33b26cf11"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "SURVEYS_DB",
+      "database_name": "fd-surveys-preview",
+      "database_id": "768387ca-bfd2-40e6-9632-a19d07a6fd0d"
+    }
+  ],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true
+  },
+  "observability": {
+    "enabled": true
+  }
+}
