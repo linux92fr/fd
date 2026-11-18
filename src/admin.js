@@ -44,7 +44,7 @@ function frame(content) {
   root.innerHTML = '<div class="admin-shell"><header class="admin-header"><a class="admin-brand" href="/"><strong>FO</strong> FOCOM · Free Distribution</a><a href="/">← Voir le site</a></header><main class="admin-main">' + content + '</main></div>';
 }
 function login(message = '') {
-  frame('<section class="admin-panel admin-login"><span class="eyebrow">Espace sécurisé</span><h1>Administration</h1><p>Connectez-vous avec votre adresse e-mail et votre mot de passe.</p><form id="login"><label>Adresse e-mail<input name="email" type="email" required autocomplete="username" placeholder="vous@exemple.fr"></label><label>Mot de passe<input name="password" type="password" required autocomplete="current-password"></label><button class="button button-red">Se connecter</button><p class="admin-message">' + esc(message) + '</p></form><button type="button" id="forgot-password" class="text-button">Mot de passe oublié ?</button><p><button type="button" id="verify-email-link" class="text-button">Vérifier mon adresse e-mail</button></p></section>');
+  frame('<section class="admin-panel admin-login"><span class="eyebrow">Espace sécurisé</span><h1>Administration</h1><p>Connectez-vous avec votre adresse e-mail et votre mot de passe.</p><form id="login"><label>Adresse e-mail<input name="email" type="email" required autocomplete="username" placeholder="vous@exemple.fr"></label><label>Mot de passe<input name="password" type="password" required autocomplete="current-password"></label><button class="button button-red">Se connecter</button><p class="admin-message">' + esc(message) + '</p></form><button type="button" id="first-password" class="text-button">Première connexion ? Définir mon mot de passe</button><br><button type="button" id="forgot-password" class="text-button">Mot de passe oublié ?</button><p><button type="button" id="verify-email-link" class="text-button">Vérifier mon adresse e-mail</button></p></section>');
   root.querySelector('#login').addEventListener('submit', async e => {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
@@ -54,6 +54,7 @@ function login(message = '') {
       await dashboard();
     } catch (err) { login(err.message || 'Connexion impossible.'); }
   });
+  root.querySelector('#first-password').addEventListener('click', () => initialPasswordSetup(root.querySelector('#login [name="email"]').value));
   root.querySelector('#forgot-password').addEventListener('click', () => passwordRequest(root.querySelector('#login [name="email"]').value));
   root.querySelector('#verify-email-link').addEventListener('click', () => emailVerification('', root.querySelector('#login [name="email"]').value));
 }
@@ -91,6 +92,48 @@ function emailVerification(message = '', initialEmail = '') {
     }
   });
 }
+function initialPasswordSetup(initialEmail = '', message = '') {
+  frame('<section class="admin-panel admin-login"><span class="eyebrow">Première connexion</span><h1>Définir mon mot de passe</h1><p>Saisissez l’adresse e-mail utilisée par l’administrateur pour créer votre compte. Un code de vérification à usage unique vous sera envoyé.</p><form id="initial-password-request"><label>Adresse e-mail<input name="email" type="email" value="' + esc(initialEmail) + '" required autocomplete="email"></label><button class="button button-red">Recevoir un code</button><p class="admin-message" role="status">' + esc(message) + '</p></form><button type="button" id="back-login" class="text-button">← Retour à la connexion</button></section>');
+  root.querySelector('#back-login').onclick = () => login();
+  root.querySelector('#initial-password-request').addEventListener('submit', async e => {
+    e.preventDefault();
+    const form = e.currentTarget, button = form.querySelector('button');
+    const email = new FormData(form).get('email').trim().toLowerCase();
+    button.disabled = true;
+    try {
+      const result = await auth.forgetPassword.emailOtp({ email });
+      if (result?.error) throw new Error(result.error.message || 'Envoi du code impossible.');
+      initialPasswordVerify(email, 'Si cette adresse correspond à un compte, un code a été envoyé. Vérifiez votre boîte de réception et vos courriers indésirables.');
+    } catch (err) {
+      initialPasswordSetup(email, err.message || 'Impossible d’envoyer le code. Réessayez plus tard.');
+    }
+  });
+}
+function initialPasswordVerify(email, message = '') {
+  frame('<section class="admin-panel admin-login"><span class="eyebrow">Vérification sécurisée</span><h1>Choisir mon mot de passe</h1><p>Un code à usage unique a été envoyé à <strong>' + esc(email) + '</strong>. Saisissez-le puis choisissez votre mot de passe personnel.</p><form id="initial-password-verify"><label>Code reçu<input name="otp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" required></label><label>Nouveau mot de passe<input name="password" type="password" minlength="8" required autocomplete="new-password"></label><label>Confirmer le mot de passe<input name="confirm" type="password" minlength="8" required autocomplete="new-password"></label><button class="button button-red">Valider et définir mon mot de passe</button><p class="admin-message" role="status">' + esc(message) + '</p></form><button type="button" id="resend-code" class="text-button">Renvoyer un code</button></section>');
+  root.querySelector('#resend-code').onclick = () => initialPasswordSetup(email);
+  root.querySelector('#initial-password-verify').addEventListener('submit', async e => {
+    e.preventDefault();
+    const form = e.currentTarget, values = new FormData(form);
+    const otp = String(values.get('otp') || '').trim();
+    const password = String(values.get('password') || '');
+    const messageNode = form.querySelector('.admin-message');
+    if (password !== values.get('confirm')) { messageNode.textContent = 'Les deux mots de passe ne correspondent pas.'; return; }
+    const button = form.querySelector('button'); button.disabled = true;
+    try {
+      const checked = await auth.emailOtp.checkVerificationOtp({ email, otp, type: 'forget-password' });
+      if (checked?.error || !checked?.data?.success) throw new Error(checked?.error?.message || 'Code invalide ou expiré. Demandez-en un nouveau.');
+      const reset = await auth.emailOtp.resetPassword({ email, otp, password });
+      if (reset?.error) throw new Error(reset.error.message || 'Impossible d’enregistrer le mot de passe.');
+      history.replaceState({}, '', '/admin');
+      login('Votre mot de passe est défini. Vous pouvez maintenant vous connecter.');
+    } catch (err) {
+      messageNode.textContent = err.message || 'Vérification impossible. Réessayez.';
+      button.disabled = false;
+    }
+  });
+}
+
 function passwordRequest(initialEmail = '', message = '') {
   frame('<section class="admin-panel admin-login"><span class="eyebrow">Récupération du compte</span><h1>Réinitialiser le mot de passe</h1><p>Saisissez l’adresse e-mail du compte concerné. Vous recevrez un lien pour choisir un nouveau mot de passe.</p><form id="password-request"><label>Adresse e-mail<input name="email" type="email" value="' + esc(initialEmail) + '" required autocomplete="email" placeholder="vous@exemple.fr"></label><button class="button button-red">Envoyer le lien</button><p class="admin-message" role="status">' + esc(message) + '</p></form><button type="button" id="back-login" class="text-button">← Retour à la connexion</button></section>');
   root.querySelector('#back-login').onclick = () => login();
@@ -467,5 +510,6 @@ function editor(a = {}) {
 }
 if (location.pathname === '/admin' || location.pathname === '/admin/') {
   if (new URLSearchParams(location.search).has('reset-password')) passwordReset();
+  else if (new URLSearchParams(location.search).has('set-password')) initialPasswordSetup();
   else dashboard();
 }
