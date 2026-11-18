@@ -347,6 +347,124 @@ function escapeEmailHtml(value) {
     .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
+function base64UrlToBytes(value) {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized + "=".repeat((4 - normalized.length % 4) % 4);
+  const binary = atob(padded);
+  return Uint8Array.from(binary, char => char.charCodeAt(0));
+}
+
+async function verifyNeonWebhook(rawBody, headers) {
+  const signature = headers.get("x-neon-signature") || "";
+  const kid = headers.get("x-neon-signature-kid") || "";
+  const timestamp = headers.get("x-neon-timestamp") || "";
+  if (!signature || !kid || !/^\\d{10,16}$/.test(timestamp)) throw new Error("MISSING_WEBHOOK_SIGNATURE");
+  const timestampMs = Number(timestamp);
+  if (!Number.isSafeInteger(timestampMs) || Math.abs(Date.now() - timestampMs) > 5 * 60 * 1000) {
+    throw new Error("WEBHOOK_TIMESTAMP_INVALID");
+  }
+
+  const parts = signature.split(".");
+  if (parts.length !== 3 || parts[1] !== "") throw new Error("WEBHOOK_SIGNATURE_FORMAT_INVALID");
+  const [headerB64, , signatureB64] = parts;
+  let protectedHeader;
+  try { protectedHeader = JSON.parse(new TextDecoder().decode(base64UrlToBytes(headerB64))); }
+  catch { throw new Error("WEBHOOK_SIGNATURE_HEADER_INVALID"); }
+  if (protectedHeader.alg !== "EdDSA") throw new Error("WEBHOOK_SIGNATURE_ALGORITHM_INVALID");
+
+  const jwksResponse = await fetch(AUTH_BASE_URL + "/.well-known/jwks.json", {
+    headers: { "accept": "application/json" },
+    cf: { cacheTtl: 300, cacheEverything: true },
+  });
+  if (!jwksResponse.ok) throw new Error("WEBHOOK_JWKS_UNAVAILABLE");
+  const jwks = await jwksResponse.json();
+  const jwk = Array.isArray(jwks.keys) ? jwks.keys.find(key => key.kid === kid && key.kty === "OKP" && key.crv === "Ed25519") : null;
+  if (!jwk) throw new Error("WEBHOOK_SIGNING_KEY_NOT_FOUND");
+
+  const payloadB64 = btoa(String.fromCharCode(...new TextEncoder().encode(rawBody)))
+    .replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/g, "");
+  const signaturePayload = timestamp + "." + payloadB64;
+  const signaturePayloadB64 = btoa(String.fromCharCode(...new TextEncoder().encode(signaturePayload)))
+    .replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/g, "");
+  const signingInput = new TextEncoder().encode(headerB64 + "." + signaturePayloadB64);
+  const publicKey = await crypto.subtle.importKey("jwk", jwk, { name: "Ed25519" }, false, ["verify"]);
+  const valid = await crypto.subtle.verify({ name: "Ed25519" }, publicKey, base64UrlToBytes(signatureB64), signingInput);
+  if (!valid) throw new Error("WEBHOOK_SIGNATURE_INVALID");
+  return JSON.parse(rawBody);
+}
+
+function renderOtpEmail(payload) {
+  const email = String(payload?.user?.email || "").trim().toLowerCase();
+  const name = String(payload?.user?.name || "").trim().slice(0, 120);
+  const code = String(payload?.event_data?.otp_code || "");
+  const type = String(payload?.event_data?.otp_type || "");
+  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || !/^\\d{6}$/.test(code)) return null;
+
+  const greeting = name ? "Bonjour " + escapeEmailHtml(name) + "," : "Bonjour,";
+  let subject, title, explanation, extra = "";
+  if (type === "email-verification") {
+    subject = "Vérifiez votre adresse e-mail – FO Free Distribution";
+    title = "Confirmez votre adresse e-mail";
+    explanation = "Voici votre code pour vérifier votre adresse e-mail sur l’espace FO Free Distribution.";
+    extra = "<p><strong>Important :</strong> la vérification de votre adresse e-mail ne vaut pas approbation de votre compte. Votre accès restera en attente jusqu’à validation par un administrateur FO.</p>";
+  } else if (type === "forget-password") {
+    subject = "Votre code de réinitialisation – FO Free Distribution";
+    title = "Réinitialiser votre mot de passe";
+    explanation = "Utilisez ce code pour poursuivre la réinitialisation de votre mot de passe.";
+  } else if (type === "sign-in") {
+    subject = "Votre code de connexion – FO Free Distribution";
+    title = "Confirmez votre connexion";
+    explanation = "Utilisez ce code pour confirmer votre connexion à l’espace FO Free Distribution.";
+  } else {
+    return null;
+  }
+
+  const html = '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#25262b;line-height:1.6"><div style="background:#c8102e;color:#fff;padding:22px 28px;font-size:20px;font-weight:bold">FO Free Distribution</div><div style="padding:28px"><p>' + greeting + '</p><h1 style="font-size:24px">' + title + '</h1><p>' + explanation + '</p><p style="margin:24px 0;padding:18px;background:#f4f4f5;text-align:center;font-size:32px;font-weight:bold;letter-spacing:8px">' + code + '</p>' + extra + '<p>Ce code est à usage unique. Ne le communiquez à personne.</p><p style="color:#666;font-size:13px">FO Free Distribution · <a href="https://fd.focom-iliad.fr">fd.focom-iliad.fr</a></p></div></div>';
+  const text = greeting.replace(/<[^>]+>/g, "") + "\\n\\n" + title + "\\n\\n" + explanation + "\\n\\nCode : " + code + (type === "email-verification" ? "\\n\\nImportant : la vérification de votre adresse e-mail ne vaut pas approbation de votre compte. Votre accès restera en attente jusqu’à validation par un administrateur FO." : "") + "\\n\\nCe code est à usage unique. Ne le communiquez à personne.\\nFO Free Distribution";
+  return { email, subject, html, text };
+}
+
+async function handleNeonAuthWebhook(request, env) {
+  if (request.method !== "POST") return json({ error: "METHOD_NOT_ALLOWED" }, 405);
+  if (!env.BREVO_API_KEY) return json({ error: "EMAIL_PROVIDER_NOT_CONFIGURED" }, 503);
+  const rawBody = await request.text();
+  if (rawBody.length > 32768) return json({ error: "PAYLOAD_TOO_LARGE" }, 413);
+
+  let payload;
+  try { payload = await verifyNeonWebhook(rawBody, request.headers); }
+  catch (error) {
+    console.warn("Neon Auth webhook rejected:", error?.message || "verification failed");
+    return json({ error: "INVALID_WEBHOOK_SIGNATURE" }, 401);
+  }
+
+  if (payload?.event_type !== "send.otp") return json({ success: true, ignored: true }, 200);
+  const email = renderOtpEmail(payload);
+  if (!email) return json({ error: "INVALID_OTP_EVENT" }, 400);
+
+  try {
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: { "accept": "application/json", "api-key": env.BREVO_API_KEY, "content-type": "application/json" },
+      body: JSON.stringify({
+        sender: { name: "FO Free Distribution", email: "contact@focom-iliad.fr" },
+        to: [{ email: email.email }],
+        subject: email.subject,
+        htmlContent: email.html,
+        textContent: email.text,
+      }),
+    });
+    if (!response.ok) {
+      const detail = await response.text();
+      console.error("Neon OTP email delivery failed:", response.status, detail.slice(0, 300));
+      return json({ error: "EMAIL_DELIVERY_FAILED" }, 502);
+    }
+    return json({ success: true }, 200);
+  } catch (error) {
+    console.error("Neon OTP email request failed:", error?.name || "unknown");
+    return json({ error: "EMAIL_PROVIDER_UNAVAILABLE" }, 502);
+  }
+}
+
 function renderAccountEmail(type, name) {
   const safeName = String(name || "").trim().slice(0, 120);
   const greeting = safeName ? "Bonjour " + safeName + "," : "Bonjour,";
@@ -778,6 +896,8 @@ export default {
     if (url.pathname.startsWith("/api/") && origin && !allowedOrigins.has(origin)) {
       return new Response(null, { status: 403 });
     }
+
+    if (url.pathname === "/api/webhooks/neon-auth") return handleNeonAuthWebhook(request, env);
 
     if (request.method === "OPTIONS" && url.pathname.startsWith("/api/")) {
       return new Response(null, {
