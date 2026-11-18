@@ -651,6 +651,37 @@ async function handleAdmin(request, env, url, origin) {
     return json({ success: delivery.sent, emailSent: delivery.sent, diagnostic: delivery }, delivery.sent ? 200 : 502, origin);
   }
 
+  const deleteUserMatch = url.pathname.match(/^\\/api\\/admin\\/users\\/([0-9a-f-]{36})$/i);
+  if (deleteUserMatch && request.method === "DELETE") {
+    if (!isAdmin) return json({ error: "SUPER_ADMIN_REQUIRED" }, 403, origin);
+    const targetId = deleteUserMatch[1];
+    if (targetId === admin.id) return json({ error: "CANNOT_DELETE_SELF", message: "Vous ne pouvez pas supprimer votre propre compte." }, 403, origin);
+    const target = await withDatabase(env, db => db.query(
+      'SELECT id, email FROM neon_auth."user" WHERE id=$1 LIMIT 1', [targetId]
+    ));
+    if (!target.rows.length) return json({ error: "USER_NOT_FOUND" }, 404, origin);
+    if (String(target.rows[0].email || "").toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+      return json({ error: "PROTECTED_ACCOUNT", message: "Le compte administrateur principal est protégé." }, 403, origin);
+    }
+    if (!env.NEON_API_KEY) return json({ error: "NEON_API_KEY_MISSING" }, 503, origin);
+    const neonResponse = await fetch(
+      "https://console.neon.tech/api/v2/projects/delicate-lake-24433548/branches/br-square-shadow-b90emym2/auth/users/" + encodeURIComponent(targetId),
+      { method: "DELETE", headers: { "Authorization": "Bearer " + env.NEON_API_KEY, "Accept": "application/json" } }
+    );
+    if (!neonResponse.ok && neonResponse.status !== 404) {
+      const detail = await neonResponse.text();
+      console.error("Neon user deletion failed:", neonResponse.status, detail.slice(0, 180));
+      return json({ error: "NEON_USER_DELETE_FAILED", message: "Neon a refusé la suppression du compte (" + neonResponse.status + ")." }, 502, origin);
+    }
+    try {
+      await withDatabase(env, db => db.query("DELETE FROM public.site_user_access WHERE user_id=$1", [targetId]));
+    } catch (error) {
+      console.error("User access cleanup failed:", error?.code || error?.name || "unknown");
+      return json({ success: true, accessCleanupPending: true, message: "Le compte Neon est supprimé, mais le nettoyage de son autorisation nécessite une vérification." }, 200, origin);
+    }
+    return json({ success: true, deletedEmail: target.rows[0].email }, 200, origin);
+  }
+
   if (url.pathname === "/api/admin/users" && request.method === "GET") {
     const r = await withDatabase(env, db => db.query(
       `SELECT u.id, u.name, u.email, u."emailVerified" AS email_verified, u."createdAt" AS created_at,
