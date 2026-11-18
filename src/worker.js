@@ -358,7 +358,7 @@ async function verifyNeonWebhook(rawBody, headers) {
   const signature = headers.get("x-neon-signature") || "";
   const kid = headers.get("x-neon-signature-kid") || "";
   const timestamp = headers.get("x-neon-timestamp") || "";
-  if (!signature || !kid || !/^\\d{10,16}$/.test(timestamp)) throw new Error("MISSING_WEBHOOK_SIGNATURE");
+  if (!signature || !kid || !/^\d{10,16}$/.test(timestamp)) throw new Error("MISSING_WEBHOOK_SIGNATURE");
   const timestampMs = Number(timestamp);
   if (!Number.isSafeInteger(timestampMs) || Math.abs(Date.now() - timestampMs) > 5 * 60 * 1000) {
     throw new Error("WEBHOOK_TIMESTAMP_INVALID");
@@ -382,10 +382,10 @@ async function verifyNeonWebhook(rawBody, headers) {
   if (!jwk) throw new Error("WEBHOOK_SIGNING_KEY_NOT_FOUND");
 
   const payloadB64 = btoa(String.fromCharCode(...new TextEncoder().encode(rawBody)))
-    .replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/g, "");
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
   const signaturePayload = timestamp + "." + payloadB64;
   const signaturePayloadB64 = btoa(String.fromCharCode(...new TextEncoder().encode(signaturePayload)))
-    .replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/g, "");
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
   const signingInput = new TextEncoder().encode(headerB64 + "." + signaturePayloadB64);
   const publicKey = await crypto.subtle.importKey("jwk", jwk, { name: "Ed25519" }, false, ["verify"]);
   const valid = await crypto.subtle.verify({ name: "Ed25519" }, publicKey, base64UrlToBytes(signatureB64), signingInput);
@@ -398,7 +398,7 @@ function renderOtpEmail(payload) {
   const name = String(payload?.user?.name || "").trim().slice(0, 120);
   const code = String(payload?.event_data?.otp_code || "");
   const type = String(payload?.event_data?.otp_type || "");
-  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || !/^\\d{6}$/.test(code)) return null;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !/^\d{6}$/.test(code)) return null;
 
   const greeting = name ? "Bonjour " + escapeEmailHtml(name) + "," : "Bonjour,";
   let subject, title, explanation, extra = "";
@@ -420,7 +420,7 @@ function renderOtpEmail(payload) {
   }
 
   const html = '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#25262b;line-height:1.6"><div style="background:#c8102e;color:#fff;padding:22px 28px;font-size:20px;font-weight:bold">FO Free Distribution</div><div style="padding:28px"><p>' + greeting + '</p><h1 style="font-size:24px">' + title + '</h1><p>' + explanation + '</p><p style="margin:24px 0;padding:18px;background:#f4f4f5;text-align:center;font-size:32px;font-weight:bold;letter-spacing:8px">' + code + '</p>' + extra + '<p>Ce code est à usage unique. Ne le communiquez à personne.</p><p style="color:#666;font-size:13px">FO Free Distribution · <a href="https://fd.focom-iliad.fr">fd.focom-iliad.fr</a></p></div></div>';
-  const text = greeting.replace(/<[^>]+>/g, "") + "\\n\\n" + title + "\\n\\n" + explanation + "\\n\\nCode : " + code + (type === "email-verification" ? "\\n\\nImportant : la vérification de votre adresse e-mail ne vaut pas approbation de votre compte. Votre accès restera en attente jusqu’à validation par un administrateur FO." : "") + "\\n\\nCe code est à usage unique. Ne le communiquez à personne.\\nFO Free Distribution";
+  const text = greeting.replace(/<[^>]+>/g, "") + "\n\n" + title + "\n\n" + explanation + "\\n\\nCode : " + code + (type === "email-verification" ? "\\n\\nImportant : la vérification de votre adresse e-mail ne vaut pas approbation de votre compte. Votre accès restera en attente jusqu’à validation par un administrateur FO." : "") + "\\n\\nCe code est à usage unique. Ne le communiquez à personne.\\nFO Free Distribution";
   return { email, subject, html, text };
 }
 
