@@ -651,7 +651,7 @@ async function handleAdmin(request, env, url, origin) {
     return json({ success: delivery.sent, emailSent: delivery.sent, diagnostic: delivery }, delivery.sent ? 200 : 502, origin);
   }
 
-  const deleteUserMatch = url.pathname.match(/^\\/api\\/admin\\/users\\/([0-9a-f-]{36})$/i);
+  const deleteUserMatch = url.pathname.match(/^\/api\/admin\/users\/([0-9a-f-]{36})$/i);
   if (deleteUserMatch && request.method === "DELETE") {
     if (!isAdmin) return json({ error: "SUPER_ADMIN_REQUIRED" }, 403, origin);
     const targetId = deleteUserMatch[1];
