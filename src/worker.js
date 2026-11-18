@@ -359,7 +359,7 @@ async function handleAdmin(request, env, url, origin) {
     const r=await withDatabase(env,async db=>id?(await db.query("UPDATE public.newsletter_campaigns SET subject=$1,preview_text=$2,html_content=$3,updated_at=NOW() WHERE id=$4 AND status='draft' RETURNING id,subject,preview_text,html_content,status,recipient_count,sent_count,failed_count,created_at,updated_at,sent_at",[subject,preview,html,id])).rows[0]||null:(await db.query("INSERT INTO public.newsletter_campaigns(subject,preview_text,html_content) VALUES($1,$2,$3) RETURNING id,subject,preview_text,html_content,status,recipient_count,sent_count,failed_count,created_at,updated_at,sent_at",[subject,preview,html])).rows[0]);
     return r?json({campaign:r},200,origin):json({error:"CAMPAIGN_NOT_EDITABLE"},409,origin);
   }
-  const testSendMatch=url.pathname.match(/^\\/api\\/admin\\/newsletter\\/campaigns\\/(\\d+)\\/test-send$/);
+  const testSendMatch=url.pathname.match(/^\/api\/admin\/newsletter\/campaigns\/(\d+)\/test-send$/);
   if(testSendMatch&&request.method==="POST"){
     if(url.hostname!=="fd-preview.linux92fr.workers.dev")return json({error:"TEST_SEND_PREVIEW_ONLY"},404,origin);
     if(!env.BREVO_API_KEY)return json({error:"BREVO_NOT_CONFIGURED"},503,origin);
@@ -369,7 +369,7 @@ async function handleAdmin(request, env, url, origin) {
     const testRecipient="kendira@gmail.com";
     const html=(campaign.preview_text?'<div style="display:none;max-height:0;overflow:hidden;opacity:0">'+campaign.preview_text.replace(/[&<>]/g," ")+'</div>':"")+campaign.html_content+'<hr><p style="font:12px Arial;color:#666">E-mail de test de la newsletter FO Free Distribution. Aucun abonnement ni statut de destinataire n’a été modifié.</p>';
     try{
-      const response=await fetch("https://api.brevo.com/v3/smtp/email",{method:"POST",headers:{"accept":"application/json","api-key":env.BREVO_API_KEY,"content-type":"application/json"},body:JSON.stringify({sender:{name:"FO Free Distribution",email:"newsletter@focom-iliad.fr"},to:[{email:testRecipient}],subject:"[TEST] "+campaign.subject,htmlContent:html,textContent:html.replace(/<[^>]*>/g," ").replace(/\\s+/g," ").trim()+"\\n\\nE-mail de test — aucun abonnement ni statut de destinataire modifié."})});
+      const response=await fetch("https://api.brevo.com/v3/smtp/email",{method:"POST",headers:{"accept":"application/json","api-key":env.BREVO_API_KEY,"content-type":"application/json"},body:JSON.stringify({sender:{name:"FO Free Distribution",email:"newsletter@focom-iliad.fr"},to:[{email:testRecipient}],subject:"[TEST] "+campaign.subject,htmlContent:html,textContent:html.replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim()+"\n\nE-mail de test — aucun abonnement ni statut de destinataire modifié."})});
       if(!response.ok)return json({error:"BREVO_TEST_SEND_FAILED",status:response.status},502,origin);
       return json({ok:true,recipient:testRecipient,message:"E-mail de test accepté par Brevo."},200,origin);
     }catch(error){
