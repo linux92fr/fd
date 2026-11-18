@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "fd",
+  "name": "fd-preview",
   "main": "src/worker.js",
   "compatibility_date": "2026-11-17",
   "compatibility_flags": [
@@ -9,7 +9,7 @@
   "hyperdrive": [
     {
       "binding": "HYPERDRIVE",
-      "id": "66751785691047d49512946dc959d949"
+      "id": "e848868f019a41cdb5512566815843d8"
     }
   ],
   "assets": {
