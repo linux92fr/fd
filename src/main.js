@@ -323,6 +323,18 @@ document.querySelector('#app').innerHTML = `
     const response = await fetch('/api/homepage', { headers: { Accept: 'application/json' } });
     if (!response.ok) return;
     const { content = {} } = await response.json();
+    const homepageImages = [['hero_image','.hero-visual'],['intro_image','.intro'],['news_image','#actualites'],['claims_image','#revendications'],['rights_image','#droits'],['survey_image','#questionnaires']];
+    for (const [key, selector] of homepageImages) {
+      const section = document.querySelector(selector);
+      if (!section || !content[key]) continue;
+      const image = document.createElement('img');
+      image.className = 'homepage-managed-image';
+      image.src = content[key];
+      image.alt = '';
+      image.loading = 'lazy';
+      section.insertBefore(image, section.firstChild);
+      if (key === 'hero_image') image.classList.add('homepage-managed-image-hero');
+    }
     document.querySelectorAll('[data-homepage]').forEach(node => {
       const key = node.dataset.homepage;
       if (typeof content[key] === 'string') node.textContent = content[key];
