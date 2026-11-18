@@ -517,3 +517,22 @@
 .intro-visual .intro-custom-image{position:absolute;inset:0;width:100%;height:100%;max-height:none;object-fit:cover;border-radius:0;margin:0;z-index:2}
 .intro.has-custom-image .intro-visual-symbol,.intro.has-custom-image .intro-visual>span,.intro.has-custom-image .intro-visual>small{display:none}
 @media(max-width:760px){.intro.section{grid-template-columns:1fr;gap:28px;padding-top:56px;padding-bottom:56px}.intro-visual{min-height:230px}.intro-pillars{display:grid;grid-template-columns:1fr}.intro-copy h2{font-size:clamp(30px,8vw,42px)}}
+
+
+/* Actualités : une vitrine éditoriale claire et accueillante */
+#actualites{background:linear-gradient(180deg,#f7f7f8 0%,#fff 100%);padding-top:clamp(64px,7vw,96px);padding-bottom:clamp(64px,7vw,96px)}
+#actualites>.homepage-managed-image{max-height:260px;aspect-ratio:21/7;object-fit:cover;margin:0 0 38px;border-radius:18px}
+#actualites .section-heading{align-items:center;margin-bottom:30px;padding:0 0 22px 22px;border-left:5px solid var(--red);border-bottom:1px solid var(--line)}
+#actualites .section-heading h2{font-size:clamp(34px,4.5vw,48px);letter-spacing:-.04em}
+#actualites .section-heading .eyebrow{font-weight:800;letter-spacing:2px}
+#actualites .section-note{max-width:340px;font-size:14px;line-height:1.7}
+#actualites .article-grid{gap:22px}
+#actualites .article-card{border-radius:14px;padding:24px;min-height:250px;box-shadow:0 8px 24px rgba(20,20,30,.045);transition:transform .2s ease,box-shadow .2s ease}
+#actualites .article-card:hover,#actualites .article-card:focus-visible{transform:translateY(-5px);box-shadow:0 16px 34px rgba(20,20,30,.11)}
+#actualites .article-card-image{width:calc(100% + 48px);margin:-24px -24px 20px;border-radius:14px 14px 0 0;aspect-ratio:16/9;max-height:220px}
+#actualites .article-card h3{font-size:20px;line-height:1.35}
+#actualites .article-card p{font-size:14px;line-height:1.75}
+#actualites .article-card time{margin-top:16px}
+#actualites .empty-state{border:1px solid #e4e4e8;border-radius:14px;padding:54px 24px;box-shadow:0 8px 24px rgba(20,20,30,.035)}
+#actualites .empty-state h3{font-size:22px}
+@media(max-width:620px){#actualites .section-heading{display:block;padding-left:16px}#actualites .section-note{display:block;margin-top:12px}#actualites>.homepage-managed-image{aspect-ratio:16/9;max-height:210px}}
