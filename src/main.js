@@ -277,6 +277,20 @@ document.querySelector('#app').innerHTML = `
       </div>
     </section>
 
+    <div class="newsletter-popup" id="newsletter-popup" aria-hidden="true">
+      <div class="newsletter-popup-backdrop" data-newsletter-close></div>
+      <section class="newsletter-popup-dialog" role="dialog" aria-modal="true" aria-labelledby="newsletter-popup-title">
+        <button class="newsletter-popup-close" type="button" aria-label="Fermer" data-newsletter-close>×</button>
+        <div class="newsletter-popup-header"><span class="newsletter-popup-brand">FO FREE DISTRIBUTION</span><h2 id="newsletter-popup-title">Restez informés&nbsp;!</h2><p>Informer · Défendre · Agir</p></div>
+        <div class="newsletter-popup-body">
+          <h3>L’actualité sociale directement dans votre boîte mail.</h3>
+          <p>Recevez nos informations syndicales, revendications, actions et actualités concernant les salariés de Free Distribution.</p>
+          <button class="button button-red newsletter-popup-cta" type="button" data-newsletter-scroll>Découvrir la newsletter et m’inscrire <span>→</span></button>
+          <p class="newsletter-popup-footnote">Inscription gratuite · Désinscription possible à tout moment.</p>
+          <button class="newsletter-popup-later" type="button" data-newsletter-close>Plus tard</button>
+        </div>
+      </section>
+    </div>
     <section class="section claims-section" id="revendications">
       <div class="section-heading">
         <div><span class="eyebrow" data-homepage="claims_eyebrow">Élections professionnelles · FO Free Distribution</span><h2 data-homepage="claims_title">Nos revendications</h2></div>
@@ -418,6 +432,37 @@ document.querySelector('#app').innerHTML = `
 
 installBackToTop();
 
+
+
+// Newsletter launch popup: once per browser after 9 seconds; never shown in admin/contact/unsubscribe flows.
+(() => {
+  const popup = document.querySelector('#newsletter-popup');
+  if (!popup) return;
+  const excluded = location.pathname.startsWith('/admin') || location.pathname.startsWith('/contact') || location.pathname.startsWith('/newsletter/desinscription');
+  if (excluded) return;
+  const storageKey = 'fd-newsletter-popup-seen-v1';
+  const close = () => {
+    popup.classList.remove('is-visible');
+    popup.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('newsletter-popup-open');
+    try { localStorage.setItem(storageKey, '1'); } catch {}
+  };
+  popup.querySelectorAll('[data-newsletter-close]').forEach(button => button.addEventListener('click', close));
+  popup.querySelector('[data-newsletter-scroll]').addEventListener('click', () => {
+    close();
+    document.querySelector('#newsletter')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    window.setTimeout(() => document.querySelector('#newsletter-email')?.focus({ preventScroll: true }), 500);
+  });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape' && popup.classList.contains('is-visible')) close(); });
+  let alreadySeen = false;
+  try { alreadySeen = localStorage.getItem(storageKey) === '1'; } catch {}
+  if (!alreadySeen) window.setTimeout(() => {
+    popup.classList.add('is-visible');
+    popup.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('newsletter-popup-open');
+    popup.querySelector('[data-newsletter-close]')?.focus();
+  }, 9000);
+})();
 
 // Public newsletter signup: explicit consent is required; the Worker never sends a welcome email.
 const newsletterForm = document.querySelector('#fd-newsletter-form');
