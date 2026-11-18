@@ -488,6 +488,10 @@ if (newsletterForm) {
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !result.ok) throw new Error(result.message || 'Impossible de finaliser votre inscription.');
+      try { localStorage.setItem('fd-newsletter-popup-seen-v1', '1'); } catch {}
+      document.querySelector('#newsletter-popup')?.classList.remove('is-visible');
+      document.querySelector('#newsletter-popup')?.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('newsletter-popup-open');
       newsletterForm.reset();
       newsletterStatus.textContent = result.message || 'Votre inscription à la newsletter FO est bien enregistrée.';
       newsletterStatus.className = 'newsletter-signup-message is-success';
