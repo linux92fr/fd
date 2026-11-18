@@ -3,11 +3,11 @@ name: Deploy Cloudflare Worker
 on:
   push:
     branches:
-      - main
+      - preview
   workflow_dispatch:
 
 concurrency:
-  group: deploy-fd-production
+  group: deploy-fd-preview
   cancel-in-progress: true
 
 jobs:
