@@ -376,7 +376,7 @@ async function handleAdmin(request, env, url, origin) {
       return json({error:prepared.error},409,origin);
     }
     let processed=0;
-    while(processed<500){
+    while(processed<10){
       const item=await withDatabase(env,async db=>{
         const r=await db.query("UPDATE public.newsletter_campaign_recipients SET status='sending',attempts=attempts+1,updated_at=NOW(),last_error=NULL WHERE id=(SELECT id FROM public.newsletter_campaign_recipients WHERE campaign_id=$1 AND status='pending' ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED) RETURNING id,email",[id]);
         return r.rows[0]||null;
