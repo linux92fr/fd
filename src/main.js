@@ -210,8 +210,8 @@ document.querySelector('#app').innerHTML = `
     </section>
 
     <section class="intro section">
-      <div><span class="eyebrow" data-homepage="intro_eyebrow">Notre engagement</span><h2 data-homepage="intro_title">À vos côtés, <span>au quotidien.</span></h2></div>
-      <p data-homepage="intro_text">La vente, le conseil et l’accompagnement des clients en boutique mobilisent des compétences et un engagement essentiels. FO Free Distributions porte la parole des salariés et défend leurs intérêts professionnels.</p>
+      <div class="intro-visual" aria-hidden="true"><div class="intro-visual-symbol">FO</div><span>FREE DISTRIBUTIONS</span><small>ÉCOUTER · INFORMER · DÉFENDRE</small></div>
+      <div class="intro-copy"><span class="eyebrow" data-homepage="intro_eyebrow">Notre engagement</span><h2 data-homepage="intro_title">À vos côtés, <span>au quotidien.</span></h2><p data-homepage="intro_text">La vente, le conseil et l’accompagnement des clients en boutique mobilisent des compétences et un engagement essentiels. FO Free Distributions porte la parole des salariés et défend leurs intérêts professionnels.</p><div class="intro-pillars"><span><b>01</b> Être à votre écoute</span><span><b>02</b> Défendre vos droits</span><span><b>03</b> Obtenir des avancées</span></div></div>
     </section>
 
     <section class="section light-section" id="actualites">
@@ -332,7 +332,7 @@ document.querySelector('#app').innerHTML = `
       image.src = content[key];
       image.alt = '';
       image.loading = 'lazy';
-      section.insertBefore(image, section.firstChild);
+      if (key === 'intro_image') { image.classList.add('intro-custom-image'); section.querySelector('.intro-visual')?.appendChild(image); section.classList.add('has-custom-image'); } else { section.insertBefore(image, section.firstChild); }
       if (key === 'hero_image') { image.classList.add('homepage-managed-image-hero'); section.classList.add('has-custom-image'); }
     }
     document.querySelectorAll('[data-homepage]').forEach(node => {
