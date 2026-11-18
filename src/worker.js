@@ -315,6 +315,20 @@ async function handleAdmin(request, env, url, origin) {
   const admin = access.admin;
 
 
+  if (url.pathname === "/api/admin/newsletter/brevo-status" && request.method === "GET") {
+    // Read-only authentication check. Never sends email and never exposes the API key.
+    if (!env.BREVO_API_KEY) return json({ configured: false, valid: false }, 200, origin);
+    try {
+      const response = await fetch("https://api.brevo.com/v3/account", {
+        method: "GET",
+        headers: { "accept": "application/json", "api-key": env.BREVO_API_KEY },
+      });
+      return json({ configured: true, valid: response.ok }, 200, origin);
+    } catch {
+      return json({ configured: true, valid: false }, 200, origin);
+    }
+  }
+
   if (url.pathname === "/api/admin/newsletter/subscribers" && request.method === "GET") {
     const r=await withDatabase(env,db=>db.query("SELECT id,email,status,subscribed_at FROM public.newsletter_subscribers ORDER BY subscribed_at DESC LIMIT 2000"));
     return json({subscribers:r.rows},200,origin);
