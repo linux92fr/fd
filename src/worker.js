@@ -337,7 +337,9 @@ async function handleAdmin(request, env, url, origin) {
     let b;try{b=await request.json()}catch{return json({error:"INVALID_JSON"},400,origin)}
     const email=String(b.email||"").trim().toLowerCase();
     if(email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return json({error:"INVALID_EMAIL"},400,origin);
-    const r=await withDatabase(env,db=>db.query("INSERT INTO public.newsletter_subscribers(email,status,subscribed_at,unsubscribed_at) VALUES($1,'subscribed',NOW(),NULL) ON CONFLICT(email) DO UPDATE SET status='subscribed',subscribed_at=NOW(),unsubscribed_at=NULL RETURNING id,email,status,subscribed_at",[email]));
+    if(b.consent_confirmed!==true)return json({error:"EXPLICIT_CONSENT_REQUIRED",message:"Confirmez que cette personne a explicitement accepté de recevoir la newsletter."},400,origin);
+    const r=await withDatabase(env,db=>db.query("INSERT INTO public.newsletter_subscribers(email,status,subscribed_at,unsubscribed_at) VALUES($1,'subscribed',NOW(),NULL) ON CONFLICT(email) DO UPDATE SET status='subscribed',subscribed_at=NOW(),unsubscribed_at=NULL WHERE public.newsletter_subscribers.status='subscribed' OR $2::boolean RETURNING id,email,status,subscribed_at",[email,b.consent_confirmed]));
+    if(!r.rows[0])return json({error:"RECONSENT_REQUIRED",message:"Cette adresse est désinscrite. Une nouvelle confirmation explicite de consentement est nécessaire avant sa réinscription."},409,origin);
     return json({subscriber:r.rows[0]},200,origin);
   }
   const subMatch=url.pathname.match(/^\/api\/admin\/newsletter\/subscribers\/(.+)$/);
@@ -782,11 +784,16 @@ export default {
           ? "Pour confirmer votre désinscription de la newsletter FO Free Distribution, cliquez sur le bouton ci-dessous."
           : "Ce lien de désinscription est invalide ou expiré.";
         const action=validToken
-          ? '<form method="post" action="/newsletter/desinscription?token='+encodeURIComponent(token)+'"><button type="submit">Confirmer ma désinscription</button></form>'
+          ? '<form method="post" action="/newsletter/desinscription?token='+encodeURIComponent(token)+'"><input type="hidden" name="confirm" value="1"><button type="submit">Confirmer ma désinscription</button></form>'
           : "";
         return new Response('<!doctype html><html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Désinscription</title><body style="font:16px Arial;max-width:620px;margin:12vh auto;padding:24px"><h1>FO Free Distribution</h1><p>'+message+'</p>'+action+'<p><a href="https://fd.focom-iliad.fr/">Retour au site</a></p></body></html>',{headers});
       }
       if(!validToken) return new Response("Lien de désinscription invalide ou expiré.",{status:400,headers});
+      const postBody=await request.text();
+      const contentType=request.headers.get("content-type")||"";
+      const oneClick=contentType.toLowerCase().includes("application/x-www-form-urlencoded")&&postBody==="List-Unsubscribe=One-Click";
+      const manualConfirm=new URLSearchParams(postBody).get("confirm")==="1";
+      if(!oneClick&&!manualConfirm)return new Response("Confirmation de désinscription invalide.",{status:400,headers});
       try{
         const r=await withDatabase(env,db=>db.query("UPDATE public.newsletter_subscribers SET status='unsubscribed',unsubscribed_at=NOW() WHERE unsubscribe_token=$1::uuid AND status='subscribed' RETURNING email",[token]));
         const message=r.rowCount?"Votre désinscription a bien été prise en compte.":"Cette adresse était déjà désinscrite ou le lien est expiré.";
