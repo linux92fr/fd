@@ -411,8 +411,13 @@ async function handleAdmin(request, env, url, origin) {
       });
       const neonData = await neonResponse.json().catch(() => ({}));
       if (!neonResponse.ok) {
-        const duplicate = neonResponse.status === 409 || /already exists|duplicate/i.test(String(neonData.message || neonData.error || ""));
-        return json({ error: duplicate ? "USER_ALREADY_EXISTS" : "NEON_USER_CREATE_FAILED", message: duplicate ? "Un compte existe déjà pour cette adresse e-mail." : "Neon n’a pas pu créer le compte. Vérifiez la configuration de la clé API." }, duplicate ? 409 : 502, origin);
+        const neonError = String(neonData.message || neonData.error || neonData.code || "Erreur Neon sans détail");
+        const duplicate = neonResponse.status === 409 || /already exists|duplicate|user already exists/i.test(neonError);
+        console.error("Neon user creation rejected:", neonResponse.status, neonError.slice(0, 240));
+        return json({
+          error: duplicate ? "USER_ALREADY_EXISTS" : "NEON_USER_CREATE_FAILED",
+          message: duplicate ? "Un compte existe déjà pour cette adresse e-mail." : "Neon a refusé la création (" + neonResponse.status + ") : " + neonError.slice(0, 180)
+        }, duplicate ? 409 : 502, origin);
       }
       if (!neonData.id) return json({ error: "NEON_INVALID_RESPONSE" }, 502, origin);
       try {
