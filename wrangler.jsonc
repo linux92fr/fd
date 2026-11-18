@@ -20,5 +20,21 @@
   },
   "observability": {
     "enabled": true
+  },
+  "d1_databases": [
+    {
+      "binding": "SURVEYS_DB",
+      "database_name": "fd-surveys-preview",
+      "database_id": "768387ca-bfd2-40e6-9632-a19d07a6fd0d"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "fd-media-preview"
+    }
+  ],
+  "vars": {
+    "NEWSLETTER_SIMULATOR": "true"
   }
 }
