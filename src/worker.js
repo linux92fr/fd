@@ -313,6 +313,62 @@ async function handleAdmin(request, env, url, origin) {
   if (access.denied) return json({ error: access.denied }, 401, origin);
   const admin = access.admin;
 
+
+  if (url.pathname === "/api/admin/newsletter/subscribers" && request.method === "GET") {
+    const r=await withDatabase(env,db=>db.query("SELECT id,email,status,subscribed_at FROM public.newsletter_subscribers ORDER BY subscribed_at DESC LIMIT 2000"));
+    return json({subscribers:r.rows},200,origin);
+  }
+  if (url.pathname === "/api/admin/newsletter/subscribers" && request.method === "POST") {
+    let b;try{b=await request.json()}catch{return json({error:"INVALID_JSON"},400,origin)}
+    const email=String(b.email||"").trim().toLowerCase();
+    if(email.length>254||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email))return json({error:"INVALID_EMAIL"},400,origin);
+    const r=await withDatabase(env,db=>db.query("INSERT INTO public.newsletter_subscribers(email,status,subscribed_at,unsubscribed_at) VALUES($1,'subscribed',NOW(),NULL) ON CONFLICT(email) DO UPDATE SET status='subscribed',subscribed_at=NOW(),unsubscribed_at=NULL RETURNING id,email,status,subscribed_at",[email]));
+    return json({subscriber:r.rows[0]},200,origin);
+  }
+  const subMatch=url.pathname.match(/^\\/api\\/admin\\/newsletter\\/subscribers\\/(.+)$/);
+  if(subMatch&&request.method==="DELETE"){
+    const email=decodeURIComponent(subMatch[1]).toLowerCase();
+    const r=await withDatabase(env,db=>db.query("UPDATE public.newsletter_subscribers SET status='unsubscribed',unsubscribed_at=NOW() WHERE email=$1 RETURNING email",[email]));
+    return r.rowCount?json({ok:true},200,origin):json({error:"SUBSCRIBER_NOT_FOUND"},404,origin);
+  }
+  if(url.pathname==="/api/admin/newsletter/campaigns"&&request.method==="GET"){
+    const r=await withDatabase(env,db=>db.query("SELECT id,subject,preview_text,html_content,status,recipient_count,sent_count,failed_count,created_at,updated_at,sent_at FROM public.newsletter_campaigns ORDER BY updated_at DESC LIMIT 200"));
+    return json({campaigns:r.rows},200,origin);
+  }
+  if(url.pathname==="/api/admin/newsletter/campaigns"&&request.method==="POST"){
+    let b;try{b=await request.json()}catch{return json({error:"INVALID_JSON"},400,origin)}
+    const subject=String(b.subject||"").trim(),preview=String(b.preview_text||"").trim(),html=String(b.html_content||"").trim(),id=b.id?Number(b.id):null;
+    if(!subject||subject.length>180||preview.length>240||!html||html.length>100000||(id&&(!Number.isSafeInteger(id)||id<1)))return json({error:"INVALID_CAMPAIGN_FIELDS"},400,origin);
+    const r=await withDatabase(env,async db=>id?(await db.query("UPDATE public.newsletter_campaigns SET subject=$1,preview_text=$2,html_content=$3,updated_at=NOW() WHERE id=$4 AND status='draft' RETURNING id,subject,preview_text,html_content,status,recipient_count,sent_count,failed_count,created_at,updated_at,sent_at",[subject,preview,html,id])).rows[0]||null:(await db.query("INSERT INTO public.newsletter_campaigns(subject,preview_text,html_content) VALUES($1,$2,$3) RETURNING id,subject,preview_text,html_content,status,recipient_count,sent_count,failed_count,created_at,updated_at,sent_at",[subject,preview,html])).rows[0]);
+    return r?json({campaign:r},200,origin):json({error:"CAMPAIGN_NOT_EDITABLE"},409,origin);
+  }
+  const sendMatch=url.pathname.match(/^\\/api\\/admin\\/newsletter\\/campaigns\\/(\\d+)\\/send$/);
+  if(sendMatch&&request.method==="POST"){
+    if(!env.BREVO_API_KEY)return json({error:"BREVO_NOT_CONFIGURED"},503,origin);
+    const id=Number(sendMatch[1]);
+    const batch=await withDatabase(env,async db=>{
+      const c=await db.query("UPDATE public.newsletter_campaigns SET status='sending',updated_at=NOW() WHERE id=$1 AND status='draft' RETURNING id,subject,html_content",[id]);
+      if(!c.rows[0])return null;
+      const s=await db.query("SELECT email,unsubscribe_token FROM public.newsletter_subscribers WHERE status='subscribed' ORDER BY id");
+      await db.query("UPDATE public.newsletter_campaigns SET recipient_count=$1,sent_count=0,failed_count=0 WHERE id=$2",[s.rows.length,id]);
+      return {campaign:c.rows[0],recipients:s.rows};
+    });
+    if(!batch)return json({error:"CAMPAIGN_NOT_FOUND_OR_ALREADY_SENT"},409,origin);
+    let sent=0,failed=0;
+    for(let i=0;i<batch.recipients.length;i+=5){
+      const results=await Promise.all(batch.recipients.slice(i,i+5).map(async s=>{
+        const u="https://fd.focom-iliad.fr/newsletter/desinscription?token="+encodeURIComponent(s.unsubscribe_token);
+        const html=batch.campaign.html_content+'<hr><p style="font:12px Arial;color:#666">Vous recevez cette newsletter FO Free Distribution. <a href="'+u+'">Se désinscrire</a>.</p>';
+        try{const r=await fetch("https://api.brevo.com/v3/smtp/email",{method:"POST",headers:{"accept":"application/json","api-key":env.BREVO_API_KEY,"content-type":"application/json"},body:JSON.stringify({sender:{name:"FO Free Distribution",email:"newsletter@focom-iliad.fr"},to:[{email:s.email}],subject:batch.campaign.subject,htmlContent:html,textContent:html.replace(/<[^>]*>/g," ").replace(/\\s+/g," ").trim(),headers:{"List-Unsubscribe":"<"+u+">","List-Unsubscribe-Post":"List-Unsubscribe=One-Click"}})});if(!r.ok){console.error("Brevo newsletter delivery:",r.status,(await r.text()).slice(0,200));return false;}return true;}catch(e){console.error("Brevo newsletter request:",e?.name||"unknown");return false;}
+      }));
+      sent+=results.filter(Boolean).length;failed+=results.length-results.filter(Boolean).length;
+      await withDatabase(env,db=>db.query("UPDATE public.newsletter_campaigns SET sent_count=$1,failed_count=$2,updated_at=NOW() WHERE id=$3",[sent,failed,id]));
+    }
+    const status=failed===0?"sent":sent===0?"draft":"partial";
+    await withDatabase(env,db=>db.query("UPDATE public.newsletter_campaigns SET status=$1,sent_count=$2,failed_count=$3,sent_at=CASE WHEN $1 IN ('sent','partial') THEN NOW() ELSE NULL END,updated_at=NOW() WHERE id=$4",[status,sent,failed,id]));
+    return json({ok:true,sent,failed},200,origin);
+  }
+
   if (url.pathname === "/api/admin/homepage" && request.method === "GET") {
     const result = await withDatabase(env, db => db.query("SELECT content FROM public.homepage_content WHERE id=1"));
     return json({ content: { ...HOMEPAGE_DEFAULTS, ...(result.rows[0]?.content || {}) } }, 200, origin);
@@ -651,6 +707,13 @@ export default {
     if (url.pathname === "/admin/questionnaire" && request.method === "GET") {
       if (!await requireSurveyAdmin(request)) return new Response("Accès réservé à l’administrateur.", { status: 403 });
       return new Response(dashboardHtml(), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-robots-tag": "noindex, nofollow" } });
+    }
+
+
+    if(url.pathname==="/newsletter/desinscription"&&request.method==="GET"){
+      const token=url.searchParams.get("token")||"";let message="Ce lien est invalide ou expiré.";
+      if(/^[0-9a-f-]{36}$/i.test(token)){try{const r=await withDatabase(env,db=>db.query("UPDATE public.newsletter_subscribers SET status='unsubscribed',unsubscribed_at=NOW() WHERE unsubscribe_token=$1::uuid AND status='subscribed' RETURNING email",[token]));if(r.rowCount)message="Votre désinscription a bien été prise en compte.";}catch(e){console.error("Newsletter unsubscribe:",e?.code||e?.name||"unknown");}}
+      return new Response('<!doctype html><html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Désinscription</title><body style="font:16px Arial;max-width:620px;margin:12vh auto;padding:24px"><h1>FO Free Distribution</h1><p>'+message+'</p><a href="https://fd.focom-iliad.fr/">Retour au site</a></body></html>',{headers:{"content-type":"text/html; charset=utf-8","cache-control":"no-store"}});
     }
 
     if (url.pathname.startsWith("/api/admin/")) {
