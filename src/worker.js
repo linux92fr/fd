@@ -393,7 +393,7 @@ async function verifyNeonWebhook(rawBody, headers) {
   return JSON.parse(rawBody);
 }
 
-function renderOtpEmail(payload) {
+function renderOtpEmail(payload, isInitialPasswordSetup = false) {
   const email = String(payload?.user?.email || "").trim().toLowerCase();
   const name = String(payload?.user?.name || "").trim().slice(0, 120);
   const code = String(payload?.event_data?.otp_code || "");
@@ -407,6 +407,11 @@ function renderOtpEmail(payload) {
     title = "Confirmez votre adresse e-mail";
     explanation = "Voici votre code pour vérifier votre adresse e-mail sur l’espace FO Free Distribution.";
     extra = "<p><strong>Important :</strong> la vérification de votre adresse e-mail ne vaut pas approbation de votre compte. Votre accès restera en attente jusqu’à validation par un administrateur FO.</p>";
+  } else if (type === "forget-password" && isInitialPasswordSetup) {
+    subject = "Définissez votre mot de passe – FO Free Distribution";
+    title = "Définir votre mot de passe";
+    explanation = "Utilisez ce code pour choisir votre mot de passe et terminer la première étape de votre inscription à l’espace FO Free Distribution.";
+    extra = "<p>Votre compte restera en attente jusqu’à son approbation par un administrateur FO. La définition de votre mot de passe ne donne pas encore accès à l’espace d’administration.</p>";
   } else if (type === "forget-password") {
     subject = "Votre code de réinitialisation – FO Free Distribution";
     title = "Réinitialiser votre mot de passe";
@@ -440,7 +445,30 @@ async function handleNeonAuthWebhook(request, env) {
   if (payload?.event_type !== "send.otp") return json({ success: true, ignored: true }, 200);
   const eventId = typeof payload.event_id === "string" ? payload.event_id.trim() : "";
   if (!eventId || eventId.length > 200) return json({ error: "INVALID_EVENT_ID" }, 400);
-  const email = renderOtpEmail(payload);
+  let isInitialPasswordSetup = false;
+  try {
+    const accountState = await withDatabase(env, db => db.query(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM neon_auth."user" u
+         JOIN public.site_user_access a ON a.user_id = u.id
+         WHERE lower(u.email) = lower($1)
+           AND a.status = 'pending'
+           AND NOT EXISTS (
+             SELECT 1 FROM neon_auth.account ac
+             WHERE ac."userId" = u.id
+               AND ac."providerId" = 'credential'
+               AND NULLIF(ac.password, '') IS NOT NULL
+           )
+       ) AS initial_setup`,
+      [String(payload?.user?.email || "").trim().toLowerCase()]
+    ));
+    isInitialPasswordSetup = accountState.rows[0]?.initial_setup === true;
+  } catch (error) {
+    console.error("Neon OTP account-state lookup failed:", error?.code || error?.name || "unknown");
+    return json({ error: "OTP_ACCOUNT_STATE_UNAVAILABLE" }, 503);
+  }
+  const email = renderOtpEmail(payload, isInitialPasswordSetup);
   if (!email) return json({ error: "INVALID_OTP_EVENT" }, 400);
 
   let claimed = false;
