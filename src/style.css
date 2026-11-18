@@ -498,3 +498,22 @@
 .homepage-image-preview{width:100%;height:125px;border-radius:8px;background:#f3f3f3;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#666;font-size:13px}
 .homepage-image-preview img{width:100%;height:100%;object-fit:cover}
 .homepage-image-field .button{font-size:13px;padding:9px 12px}
+
+
+/* Rubrique Engagement : mise en page éditoriale et responsive */
+.intro.section{display:grid;grid-template-columns:minmax(280px,.9fr) minmax(0,1.1fr);gap:clamp(32px,6vw,88px);align-items:center;padding-top:clamp(64px,8vw,110px);padding-bottom:clamp(64px,8vw,110px)}
+.intro-visual{min-height:310px;border-radius:22px;background:linear-gradient(140deg,#17191f 0%,#34363d 58%,#bd0926 58%,#e20d2e 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;overflow:hidden;color:#fff;gap:10px}
+.intro-visual:before,.intro-visual:after{content:"";position:absolute;border:1px solid rgba(255,255,255,.18);border-radius:50%;width:260px;height:260px}
+.intro-visual:after{width:340px;height:340px}
+.intro-visual-symbol{font-size:clamp(76px,10vw,124px);font-weight:900;letter-spacing:-.1em;line-height:1;color:#fff;z-index:1}
+.intro-visual>span,.intro-visual>small{z-index:1;letter-spacing:3px;font-weight:800;font-size:11px}
+.intro-visual>small{font-size:9px;opacity:.8}
+.intro-copy{max-width:680px}
+.intro-copy h2{line-height:1.12;letter-spacing:-.04em}
+.intro-copy>p{font-size:17px;line-height:1.85;color:var(--muted);margin:22px 0 0}
+.intro-pillars{display:flex;flex-wrap:wrap;gap:10px;margin-top:28px}
+.intro-pillars span{display:flex;align-items:center;gap:9px;padding:10px 13px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:12px;font-weight:700}
+.intro-pillars b{color:var(--red);font-size:11px}
+.intro-visual .intro-custom-image{position:absolute;inset:0;width:100%;height:100%;max-height:none;object-fit:cover;border-radius:0;margin:0;z-index:2}
+.intro.has-custom-image .intro-visual-symbol,.intro.has-custom-image .intro-visual>span,.intro.has-custom-image .intro-visual>small{display:none}
+@media(max-width:760px){.intro.section{grid-template-columns:1fr;gap:28px;padding-top:56px;padding-bottom:56px}.intro-visual{min-height:230px}.intro-pillars{display:grid;grid-template-columns:1fr}.intro-copy h2{font-size:clamp(30px,8vw,42px)}}
