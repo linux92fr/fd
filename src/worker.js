@@ -9,7 +9,7 @@ const AUTH_BASE_URL = "https://ep-sweet-resonance-b9ov2yaa.neonauth.c-7.eu-centr
 const AUTH_JWKS = createRemoteJWKSet(new URL(AUTH_BASE_URL + "/.well-known/jwks.json"));
 const AUTH_ISSUER = new URL(AUTH_BASE_URL).origin;
 const ADMIN_EMAIL = "free-distri@focom-iliad.fr";
-const HOMEPAGE_DEFAULTS = {"hero_eyebrow":"FOCOM · Free Distributions","hero_title":"La voix des salariés\ndes boutiques Free.","hero_text":"Un espace d’information, de dialogue et d’action syndicale dédié aux équipes de Free Distributions.","hero_primary_label":"Nos revendications","hero_primary_url":"#revendications","hero_secondary_label":"Nous contacter","hero_secondary_url":"/contact","intro_eyebrow":"Notre engagement","intro_title":"À vos côtés, au quotidien.","intro_text":"La vente, le conseil et l’accompagnement des clients en boutique mobilisent des compétences et un engagement essentiels. FO Free Distributions porte la parole des salariés et défend leurs intérêts professionnels.","news_eyebrow":"Restez informés","news_title":"Actualités","news_note":"Les informations dédiées à Free Distributions","claims_eyebrow":"Élections professionnelles · FO Free Distributions","claims_title":"Nos revendications","claims_lead":"Notre ambition : obtenir des avancées concrètes sur les salaires, les commissions, les conditions de travail et la reconnaissance des équipes en boutique. Voici les engagements que FO souhaite porter avec vous.","rights_eyebrow":"Mieux connaître vos droits","rights_title":"Vos droits au travail","rights_lead":"Des repères pratiques pour comprendre vos droits et savoir vers qui vous tourner. Les contenus détaillés seront publiés prochainement.","survey_eyebrow":"Votre avis compte","survey_title":"Donnez votre avis en toute confidentialité.","survey_text":"Cette consultation permet de faire remonter les attentes et les priorités des salariés de Free Distributions. Vos réponses sont enregistrées sans nom ni adresse e-mail.","hero_image":"","intro_image":"","news_image":"","claims_image":"","rights_image":"","survey_image":""};
+const HOMEPAGE_DEFAULTS = {"hero_eyebrow":"FOCOM · Free Distribution","hero_title":"La voix des salariés\ndes boutiques Free.","hero_text":"Un espace d’information, de dialogue et d’action syndicale dédié aux équipes de Free Distribution.","hero_primary_label":"Nos revendications","hero_primary_url":"#revendications","hero_secondary_label":"Nous contacter","hero_secondary_url":"/contact","intro_eyebrow":"Notre engagement","intro_title":"À vos côtés, au quotidien.","intro_text":"La vente, le conseil et l’accompagnement des clients en boutique mobilisent des compétences et un engagement essentiels. FO Free Distribution porte la parole des salariés et défend leurs intérêts professionnels.","news_eyebrow":"Restez informés","news_title":"Actualités","news_note":"Les informations dédiées à Free Distribution","claims_eyebrow":"Élections professionnelles · FO Free Distribution","claims_title":"Nos revendications","claims_lead":"Notre ambition : obtenir des avancées concrètes sur les salaires, les commissions, les conditions de travail et la reconnaissance des équipes en boutique. Voici les engagements que FO souhaite porter avec vous.","rights_eyebrow":"Mieux connaître vos droits","rights_title":"Vos droits au travail","rights_lead":"Des repères pratiques pour comprendre vos droits et savoir vers qui vous tourner. Les contenus détaillés seront publiés prochainement.","survey_eyebrow":"Votre avis compte","survey_title":"Donnez votre avis en toute confidentialité.","survey_text":"Cette consultation permet de faire remonter les attentes et les priorités des salariés de Free Distribution. Vos réponses sont enregistrées sans nom ni adresse e-mail.","hero_image":"","intro_image":"","news_image":"","claims_image":"","rights_image":"","survey_image":""};
 const SURVEY_ACCESS_ISSUER = "https://linux92fr.cloudflareaccess.com";
 const SURVEY_ACCESS_AUDIENCE = "e58983dc65cd10dd66fdb66e69e85c1e099f2427f9de1e8fb03b84b961bb22ed";
 const SURVEY_ACCESS_JWKS = createRemoteJWKSet(new URL(SURVEY_ACCESS_ISSUER + "/cdn-cgi/access/certs"));
@@ -83,7 +83,7 @@ async function handleContact(request, env) {
   const safeName = name.replace(/[\r\n<>]/g, " ").trim();
   const safeSubject = subject.replace(/[\r\n]/g, " ").trim();
   const textContent = [
-    "Nouveau message depuis le formulaire de contact FO Free Distributions",
+    "Nouveau message depuis le formulaire de contact FO Free Distribution",
     "",
     "Nom : " + (safeName || "Non renseigné"),
     "Adresse de réponse : " + email,
@@ -116,8 +116,8 @@ async function handleContact(request, env) {
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        sender: { name: "FO Free Distributions", email: "contact@focom-iliad.fr" },
-        to: [{ email: "free-distri@focom-iliad.fr", name: "FO Free Distributions" }],
+        sender: { name: "FO Free Distribution", email: "contact@focom-iliad.fr" },
+        to: [{ email: "free-distri@focom-iliad.fr", name: "FO Free Distribution" }],
         replyTo: { email, ...(safeName ? { name: safeName } : {}) },
         subject: "[Contact site FD] " + safeSubject,
         textContent,
@@ -203,7 +203,7 @@ async function surveyResults(request, env) {
 function dashboardHtml() {
   return `<!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex,nofollow"><title>Résultats questionnaire · FO Free Distributions</title>
+<meta name="robots" content="noindex,nofollow"><title>Résultats questionnaire · FO Free Distribution</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#f4f5f7;color:#22232a;font:15px system-ui,sans-serif}
 header{background:#25262b;color:white;padding:22px max(5vw,20px);display:flex;justify-content:space-between;align-items:center;gap:20px}
@@ -223,7 +223,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{text-align:left;p
 @media(max-width:720px){.cards,.grid{grid-template-columns:1fr}.barrow{grid-template-columns:120px 1fr 28px}header{align-items:flex-start;flex-direction:column}}
 @media print{body{background:white}header{background:white;color:#222;border-bottom:1px solid #ccc;padding:12px 0}header a,.actions{display:none!important}main{max-width:none;margin:15px 0;padding:0}.card,.panel{box-shadow:none;break-inside:avoid}.cards{grid-template-columns:repeat(3,1fr)}.grid{grid-template-columns:1fr 1fr}}
 </style></head><body>
-<header><div><strong>FO</strong> FOCOM · Free Distributions — Administration</div><a href="/">← Retour au site</a></header>
+<header><div><strong>FO</strong> FOCOM · Free Distribution — Administration</div><a href="/">← Retour au site</a></header>
 <main><span class="eyebrow">Consultation des salariés · production</span><h1>Résultats du questionnaire</h1>
 <p class="muted">Données anonymes recueillies sur l'environnement de production. Accès réservé à l'administrateur.</p>
 <div class="actions"><button class="btn" id="csv">Exporter en CSV</button><button class="btn alt" id="pdf">Imprimer / Enregistrer en PDF</button><button class="btn alt" id="refresh">Actualiser</button></div>
@@ -572,14 +572,14 @@ export default {
         const article = result.rows[0];
         const escapeMeta = value => String(value || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
         const description = escapeMeta((article.excerpt || article.title).split(" ").join(" ").slice(0, 250));
-        const title = escapeMeta(article.title + " – FO Free Distributions");
+        const title = escapeMeta(article.title + " – FO Free Distribution");
         const canonical = "https://fd.focom-iliad.fr/actualites/" + encodeURIComponent(slug);
         const image = article.cover_image_url ? '<meta property="og:image" content="' + escapeMeta(article.cover_image_url) + '">' : "";
         const tags = '<title>' + title + '</title>' +
           '<meta name="description" content="' + description + '">' +
           '<link rel="canonical" href="' + canonical + '">' +
           '<meta property="og:type" content="article">' +
-          '<meta property="og:site_name" content="FO Free Distributions">' +
+          '<meta property="og:site_name" content="FO Free Distribution">' +
           '<meta property="og:title" content="' + title + '">' +
           '<meta property="og:description" content="' + description + '">' +
           '<meta property="og:url" content="' + canonical + '">' + image +
