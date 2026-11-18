@@ -354,6 +354,8 @@ async function handleAdmin(request, env, url, origin) {
       return {campaign:c.rows[0],recipients:s.rows};
     });
     if(!batch)return json({error:"CAMPAIGN_NOT_FOUND_OR_ALREADY_SENT"},409,origin);
+    if(!batch.recipients.length){await withDatabase(env,db=>db.query("UPDATE public.newsletter_campaigns SET status=$1,updated_at=NOW() WHERE id=$2",["draft",id]));return json({error:"NO_ACTIVE_SUBSCRIBERS"},409,origin);}
+    if(batch.recipients.length>500){await withDatabase(env,db=>db.query("UPDATE public.newsletter_campaigns SET status=$1,updated_at=NOW() WHERE id=$2",["draft",id]));return json({error:"TOO_MANY_SUBSCRIBERS_FOR_SINGLE_SEND",limit:500},413,origin);}
     let sent=0,failed=0;
     for(let i=0;i<batch.recipients.length;i+=5){
       const results=await Promise.all(batch.recipients.slice(i,i+5).map(async s=>{
