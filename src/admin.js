@@ -22,7 +22,7 @@ function renderArticleMarkup(source) {
 
 import { createAuthClient } from '@neondatabase/auth';
 
-const auth = createAuthClient('https://ep-sweet-resonance-b9ov2yaa.neonauth.c-7.eu-central-1.aws.neon.tech/neondb/auth');
+const auth = createAuthClient('https://ep-curly-lake-b9d1r2gp.neonauth.c-7.eu-central-1.aws.neon.tech/neondb/auth');
 const root = document.querySelector('#app');
 let mediaReturn = null;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
