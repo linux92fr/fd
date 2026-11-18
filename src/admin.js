@@ -174,9 +174,10 @@ async function surveyPage() {
   } catch (err) { login('Impossible de charger les résultats : '+(err.message||'ERREUR_INCONNUE')+'.'); }
 }
 
-async function homepagePage() {
+async function homepagePage(overrides = null) {
   try {
-    const { content = {} } = await call('/api/admin/homepage');
+    const { content: savedContent = {} } = await call('/api/admin/homepage');
+    const content = { ...savedContent, ...(overrides || {}) };
     const fields = [
       ['hero_eyebrow','Petit titre d’accueil'],['hero_title','Grand titre d’accueil'],['hero_text','Texte d’introduction'],
       ['hero_primary_label','Bouton principal — texte'],['hero_primary_url','Bouton principal — lien'],
@@ -219,7 +220,7 @@ async function homepagePage() {
       }
     };
     form.addEventListener('input', preview);
-    root.querySelectorAll('.homepage-image-select').forEach(button => button.onclick = () => { const key = button.dataset.imageKey; mediaReturn = url => { form.elements.namedItem(key).value = url; preview(); }; mediaPage(); });
+    root.querySelectorAll('.homepage-image-select').forEach(button => button.onclick = () => { const key = button.dataset.imageKey; const current = {}; for (const [field] of fields) current[field] = form.elements.namedItem(field).value; for (const [field] of imageFields) current[field] = form.elements.namedItem(field).value; mediaReturn = url => homepagePage({ ...current, [key]: url }); mediaPage(); });
     root.querySelectorAll('.homepage-image-clear').forEach(button => button.onclick = () => { const key = button.dataset.imageKey; form.elements.namedItem(key).value = ''; preview(); });
     preview();
     form.addEventListener('submit', async event => {
