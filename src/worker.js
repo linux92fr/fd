@@ -22,7 +22,7 @@ function json(data, status = 200, origin = "") {
     "cache-control": "no-store",
     "x-content-type-options": "nosniff",
     "referrer-policy": "strict-origin-when-cross-origin",
-    "content-security-policy": "default-src 'none'; frame-ancestors 'none'",
+    "content-security-policy": "default-src 'none'; frame-src 'self'; frame-ancestors 'none'",
   };
   if (allowedOrigins.has(origin)) {
     headers["access-control-allow-origin"] = origin;
