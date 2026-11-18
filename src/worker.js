@@ -322,7 +322,7 @@ async function handleAdmin(request, env, url, origin) {
   if (url.pathname === "/api/admin/newsletter/subscribers" && request.method === "POST") {
     let b;try{b=await request.json()}catch{return json({error:"INVALID_JSON"},400,origin)}
     const email=String(b.email||"").trim().toLowerCase();
-    if(email.length>254||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email))return json({error:"INVALID_EMAIL"},400,origin);
+    if(email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return json({error:"INVALID_EMAIL"},400,origin);
     const r=await withDatabase(env,db=>db.query("INSERT INTO public.newsletter_subscribers(email,status,subscribed_at,unsubscribed_at) VALUES($1,'subscribed',NOW(),NULL) ON CONFLICT(email) DO UPDATE SET status='subscribed',subscribed_at=NOW(),unsubscribed_at=NULL RETURNING id,email,status,subscribed_at",[email]));
     return json({subscriber:r.rows[0]},200,origin);
   }
