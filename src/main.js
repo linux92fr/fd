@@ -442,11 +442,11 @@ async function loadArticles() {
     }).join('')}</div>`;
   } catch (error) {
     console.error('Chargement des actualités impossible:', error);
-    articlesList.innerHTML = `<div class="empty-state"><h3>Actualités momentanément indisponibles</h3><p>Merci de réessayer dans quelques instants.</p></div>`;
+    if (articlesList) articlesList.innerHTML = `<div class="empty-state"><h3>Actualités momentanément indisponibles</h3><p>Merci de réessayer dans quelques instants.</p></div>`;
   }
 }
 
-loadArticles();
+if (articlesList) loadArticles();
 
 // Contact form: sends messages through the Worker to the FO mailbox.
 const contactForm = document.querySelector('#fd-contact-form');
