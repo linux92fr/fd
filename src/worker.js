@@ -517,6 +517,34 @@ function renderAccountEmail(type, name) {
   return null;
 }
 
+
+async function sendAccountEmail(env, recipient, name, type) {
+  const email = renderAccountEmail(type, name);
+  if (!email || !env.BREVO_API_KEY) return false;
+  try {
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: { "accept": "application/json", "api-key": env.BREVO_API_KEY, "content-type": "application/json" },
+      body: JSON.stringify({
+        sender: { name: "FO Free Distribution", email: "contact@focom-iliad.fr" },
+        to: [{ email: recipient }],
+        subject: email.subject,
+        htmlContent: email.html,
+        textContent: email.text,
+      }),
+    });
+    if (!response.ok) {
+      const detail = await response.text();
+      console.error("Account email delivery failed:", type, response.status, detail.slice(0, 240));
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error("Account email request failed:", type, error?.name || "unknown");
+    return false;
+  }
+}
+
 async function handleAdmin(request, env, url, origin) {
   const access = await requireSiteAccess(request, env);
   if (access.denied) return json({ error: access.denied }, 401, origin);
@@ -576,7 +604,8 @@ async function handleAdmin(request, env, url, origin) {
         console.error("Site access record creation failed after Neon user creation:", dbError?.code || dbError?.name || "unknown");
         return json({ error: "USER_CREATED_ACCESS_PENDING", message: "Le compte d’authentification a été créé, mais son accès au site n’a pas pu être initialisé. Ne relancez pas la création ; actualisez la liste et contactez l’administrateur." }, 503, origin);
       }
-      return json({ success: true, user: { id: neonData.id, name, email, role, status: "pending" }, emailSent: false }, 201, origin);
+      const emailSent = await sendAccountEmail(env, email, name, "welcome");
+      return json({ success: true, user: { id: neonData.id, name, email, role, status: "pending" }, emailSent }, 201, origin);
     } catch (error) {
       console.error("Neon user creation request failed:", error?.name || "unknown");
       return json({ error: "NEON_API_UNAVAILABLE", message: "Le service de création de compte est momentanément indisponible." }, 503, origin);
@@ -600,7 +629,11 @@ async function handleAdmin(request, env, url, origin) {
     const role = body.role, status = body.status;
     if (!["admin", "editor", "employee"].includes(role) || !["pending", "active", "suspended"].includes(status)) return json({ error: "INVALID_ROLE_OR_STATUS" }, 400, origin);
     const result = await withDatabase(env, async db => {
-      const target = await db.query('SELECT id, email FROM neon_auth."user" WHERE id = $1', [userId]);
+      const target = await db.query(
+        `SELECT u.id, u.email, u.name, COALESCE(a.status, 'pending') AS previous_status
+         FROM neon_auth."user" u LEFT JOIN public.site_user_access a ON a.user_id = u.id
+         WHERE u.id = $1`, [userId]
+      );
       if (!target.rows[0]) return { missing: true };
       if (target.rows[0].email.toLowerCase() === ADMIN_EMAIL.toLowerCase() && (role !== "admin" || status !== "active")) return { protected: true };
       await db.query(
@@ -610,11 +643,12 @@ async function handleAdmin(request, env, url, origin) {
            approved_by = EXCLUDED.approved_by, approved_at = EXCLUDED.approved_at, updated_at = now()`,
         [userId, role, status, admin.id]
       );
-      return { updated: true };
+      return { updated: true, email: target.rows[0].email, name: target.rows[0].name, activated: target.rows[0].previous_status !== "active" && status === "active" };
     });
     if (result.missing) return json({ error: "USER_NOT_FOUND" }, 404, origin);
     if (result.protected) return json({ error: "SUPER_ADMIN_PROTECTED" }, 403, origin);
-    return json({ success: true }, 200, origin);
+    const activationEmailSent = result.activated ? await sendAccountEmail(env, result.email, result.name, "activation") : null;
+    return json({ success: true, activationEmailSent }, 200, origin);
   }
 
   if (url.pathname === "/api/admin/newsletter/brevo-status" && request.method === "GET") {
