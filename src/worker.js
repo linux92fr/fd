@@ -406,7 +406,7 @@ async function handleAdmin(request, env, url, origin) {
         await withDatabase(env,db=>db.query("UPDATE public.newsletter_campaign_recipients SET status='failed',last_error='Jeton de désinscription introuvable',updated_at=NOW() WHERE id=$1",[item.id]));
         continue;
       }
-      const u="https://fd.focom-iliad.fr/newsletter/desinscription?token="+encodeURIComponent(token);
+      const unsubscribeUrl=new URL("/newsletter/desinscription",url.origin);unsubscribeUrl.searchParams.set("token",token);const u=unsubscribeUrl.toString();
       const c=await withDatabase(env,db=>db.query("SELECT subject,preview_text,html_content FROM public.newsletter_campaigns WHERE id=$1",[id]));
       const campaign=c.rows[0];
       const html=(campaign.preview_text?'<div style="display:none;max-height:0;overflow:hidden;opacity:0">'+campaign.preview_text.replace(/[&<>]/g," ")+'</div>':"")+campaign.html_content+'<hr><p style="font:12px Arial;color:#666">Vous recevez cette newsletter FO Free Distribution. <a href="'+u+'">Se désinscrire</a>.</p>';
@@ -416,7 +416,7 @@ async function handleAdmin(request, env, url, origin) {
           // Preview-only deterministic test: example.com succeeds; the seeded Gmail test row fails.
           response={ok:item.email==="test-desinscription@example.com",status:item.email==="test-desinscription@example.com"?201:400};
         } else {
-          response=await fetch("https://api.brevo.com/v3/smtp/email",{method:"POST",headers:{"accept":"application/json","api-key":env.BREVO_API_KEY,"content-type":"application/json"},body:JSON.stringify({sender:{name:"FO Free Distribution",email:"newsletter@focom-iliad.fr"},to:[{email:item.email}],subject:campaign.subject,htmlContent:html,textContent:html.replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim(),headers:{"List-Unsubscribe":"<"+u+">","List-Unsubscribe-Post":"List-Unsubscribe=One-Click"}})});
+          response=await fetch("https://api.brevo.com/v3/smtp/email",{method:"POST",headers:{"accept":"application/json","api-key":env.BREVO_API_KEY,"content-type":"application/json"},body:JSON.stringify({sender:{name:"FO Free Distribution",email:"newsletter@focom-iliad.fr"},to:[{email:item.email}],subject:campaign.subject,htmlContent:html,textContent:html.replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim()+"\n\nSe désinscrire : "+u,headers:{"List-Unsubscribe":"<"+u+">","List-Unsubscribe-Post":"List-Unsubscribe=One-Click"}})});
         }
         if(response.ok)await withDatabase(env,db=>db.query("UPDATE public.newsletter_campaign_recipients SET status='sent',sent_at=NOW(),updated_at=NOW() WHERE id=$1",[item.id]));
         else if(response.status>=500)await withDatabase(env,db=>db.query("UPDATE public.newsletter_campaign_recipients SET status='unknown',last_error=$2,updated_at=NOW() WHERE id=$1",[item.id,"Réponse Brevo HTTP "+response.status]));
