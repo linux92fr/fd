@@ -1,0 +1,42 @@
+name: Deploy Cloudflare Worker preview
+
+on:
+  push:
+    branches:
+      - feature/newsletter-brevo
+    paths:
+      - "src/**"
+      - "public/**"
+      - "index.html"
+      - "package.json"
+      - "wrangler.preview.jsonc"
+      - "vite.config.*"
+      - ".github/workflows/deploy-preview.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-fd-preview
+  cancel-in-progress: true
+
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: feature/newsletter-brevo
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install
+      - name: Build site
+        run: npm run build
+      - name: Deploy preview Worker only
+        run: npx wrangler deploy --config wrangler.preview.jsonc
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
