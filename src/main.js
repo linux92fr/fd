@@ -41,24 +41,24 @@ if (/^\/admin\/?$/.test(location.pathname)) {
 } else if (/^\/contact\/?$/.test(location.pathname)) {
   document.querySelector('#app').innerHTML = `
     <header class="site-header">
-      <a class="brand" href="/" aria-label="FO Free Distributions, accueil">
+      <a class="brand" href="/" aria-label="FO Free Distribution, accueil">
         <img class="brand-logo" src="/logo-focom-fond-rouge.png" alt="FOCOM">
-        <span class="brand-copy"><strong>FOCOM</strong><b><em>Free</em> Distributions</b><small>Le syndicat des salariés de Free Distributions</small></span>
+        <span class="brand-copy"><strong>FOCOM</strong><b><em>Free</em> Distributions</b><small>Le syndicat des salariés de Free Distribution</small></span>
       </a>
       <a class="button button-outline" href="/">← Retour à l'accueil</a>
     </header>
     <main class="contact-page">
       <section class="contact-page-hero">
-        <span class="eyebrow">FO Free Distributions</span>
+        <span class="eyebrow">FO Free Distribution</span>
         <h1>Contactez <span>FO.</span></h1>
-        <p>Une question, une difficulté au travail, une suggestion ou besoin d'un échange ? L'équipe FO Free Distributions est à votre écoute.</p>
+        <p>Une question, une difficulté au travail, une suggestion ou besoin d'un échange ? L'équipe FO Free Distribution est à votre écoute.</p>
       </section>
       <section class="contact-page-card contact-form-card">
         <div class="contact-icon" aria-hidden="true">✉</div>
         <div>
           <span class="eyebrow">Écrivez-nous</span>
           <h2>Envoyer un message à l'équipe FO</h2>
-          <p>Votre message sera transmis à l'équipe FO Free Distributions. Les champs marqués d'un astérisque sont obligatoires.</p>
+          <p>Votre message sera transmis à l'équipe FO Free Distribution. Les champs marqués d'un astérisque sont obligatoires.</p>
           <form id="fd-contact-form" class="contact-form">
             <label>Nom et prénom <span>(facultatif)</span><input name="name" type="text" maxlength="120" autocomplete="name" placeholder="Votre nom"></label>
             <label>Adresse e-mail <b>*</b><input name="email" type="email" maxlength="254" required autocomplete="email" placeholder="vous@exemple.fr"></label>
@@ -76,7 +76,7 @@ if (/^\/admin\/?$/.test(location.pathname)) {
         <p>Vous pouvez également consulter le <a href="/#questionnaires">questionnaire destiné aux salariés</a> pour faire connaître vos attentes et vos priorités de manière anonyme.</p>
       </section>
     </main>
-    <footer class="site-footer"><a class="footer-brand" href="/"><img class="footer-logo" src="/logo-focom-fond-rouge.png" alt="FOCOM"><span data-homepage="hero_eyebrow">FOCOM · Free Distributions</span></a><span>À l'écoute des salariés</span><a href="/">Retour à l'accueil ↑</a></footer>
+    <footer class="site-footer"><a class="footer-brand" href="/"><img class="footer-logo" src="/logo-focom-fond-rouge.png" alt="FOCOM"><span data-homepage="hero_eyebrow">FOCOM · Free Distribution</span></a><span>À l'écoute des salariés</span><a href="/">Retour à l'accueil ↑</a></footer>
   `;
 
 installBackToTop();
@@ -126,14 +126,14 @@ if (contactForm) {
   }[char]));
   document.querySelector('#app').innerHTML = `
     <header class="site-header article-detail-header">
-      <a class="brand" href="/" aria-label="FO Free Distributions, accueil">
+      <a class="brand" href="/" aria-label="FO Free Distribution, accueil">
         <img class="brand-logo" src="/logo-focom-fond-rouge.png" alt="FOCOM">
-        <span class="brand-copy"><strong>FOCOM</strong><b><em>Free</em> Distributions</b><small>Le syndicat des salariés de Free Distributions</small></span>
+        <span class="brand-copy"><strong>FOCOM</strong><b><em>Free</em> Distributions</b><small>Le syndicat des salariés de Free Distribution</small></span>
       </a>
       <a class="button button-outline" href="/#actualites">← Toutes les actualités</a>
     </header>
     <main class="article-detail-page" id="article-detail"><p class="article-detail-loading">Chargement de l’article…</p></main>
-    <footer class="site-footer"><a class="footer-brand" href="/"><img class="footer-logo" src="/logo-focom-fond-rouge.png" alt="FOCOM"><span>FOCOM · Free Distributions</span></a><span>À l'écoute des salariés</span><a href="/#actualites">Toutes les actualités ↑</a></footer>
+    <footer class="site-footer"><a class="footer-brand" href="/"><img class="footer-logo" src="/logo-focom-fond-rouge.png" alt="FOCOM"><span>FOCOM · Free Distribution</span></a><span>À l'écoute des salariés</span><a href="/#actualites">Toutes les actualités ↑</a></footer>
   `;
   installBackToTop();
   (async () => {
@@ -191,7 +191,7 @@ if (contactForm) {
       } catch (navigationError) {
         console.warn('Navigation entre les articles indisponible:', navigationError);
       }
-      document.title = article.title + ' – FO Free Distributions';
+      document.title = article.title + ' – FO Free Distribution';
     } catch (error) {
       target.innerHTML = `<div class="article-detail-error"><h1>Article indisponible</h1><p>${escapeArticle(error.message)}</p><a class="button button-outline" href="/#actualites">← Retour aux actualités</a></div data-homepage="claims_title">`;
     }
@@ -210,9 +210,9 @@ const nav = [
 
 document.querySelector('#app').innerHTML = `
   <header class="site-header">
-    <a class="brand" href="#accueil" aria-label="FO Free Distributions, accueil">
+    <a class="brand" href="#accueil" aria-label="FO Free Distribution, accueil">
       <img class="brand-logo" src="/logo-focom-fond-rouge.png" alt="FOCOM">
-      <span class="brand-copy"><strong>FOCOM</strong><b><em>Free</em> Distributions</b><small>Le syndicat des salariés de Free Distributions</small></span>
+      <span class="brand-copy"><strong>FOCOM</strong><b><em>Free</em> Distributions</b><small>Le syndicat des salariés de Free Distribution</small></span>
     </a>
     <button class="menu-toggle" aria-label="Ouvrir le menu" aria-expanded="false">☰</button>
     <nav class="main-nav" aria-label="Navigation principale">
@@ -223,9 +223,9 @@ document.querySelector('#app').innerHTML = `
   <main>
     <section class="hero" id="accueil">
       <div class="hero-content">
-        <span class="eyebrow" data-homepage="hero_eyebrow">FOCOM · Free Distributions</span>
+        <span class="eyebrow" data-homepage="hero_eyebrow">FOCOM · Free Distribution</span>
         <h1 data-homepage="hero_title">La voix des salariés<br><span>des boutiques Free.</span></h1>
-        <p data-homepage="hero_text">Un espace d’information, de dialogue et d’action syndicale dédié aux équipes de Free Distributions.</p>
+        <p data-homepage="hero_text">Un espace d’information, de dialogue et d’action syndicale dédié aux équipes de Free Distribution.</p>
         <div class="hero-actions">
           <a class="button button-red" data-homepage-link="hero_primary" href="#revendications">Nos revendications</a>
           <a class="button button-outline" data-homepage-link="hero_secondary" href="/contact">Nous contacter</a>
@@ -246,12 +246,12 @@ document.querySelector('#app').innerHTML = `
     </section>
 
     <section class="intro section">
-      <div class="intro-visual" aria-hidden="true"><div class="intro-visual-symbol">FO</div><span>FREE DISTRIBUTIONS</span><small>ÉCOUTER · INFORMER · DÉFENDRE</small></div>
-      <div class="intro-copy"><span class="eyebrow" data-homepage="intro_eyebrow">Notre engagement</span><h2 data-homepage="intro_title">À vos côtés, <span>au quotidien.</span></h2><p data-homepage="intro_text">La vente, le conseil et l’accompagnement des clients en boutique mobilisent des compétences et un engagement essentiels. FO Free Distributions porte la parole des salariés et défend leurs intérêts professionnels.</p><div class="intro-pillars"><span><b>01</b> Être à votre écoute</span><span><b>02</b> Défendre vos droits</span><span><b>03</b> Obtenir des avancées</span></div></div>
+      <div class="intro-visual" aria-hidden="true"><div class="intro-visual-symbol">FO</div><span>FREE DISTRIBUTION</span><small>ÉCOUTER · INFORMER · DÉFENDRE</small></div>
+      <div class="intro-copy"><span class="eyebrow" data-homepage="intro_eyebrow">Notre engagement</span><h2 data-homepage="intro_title">À vos côtés, <span>au quotidien.</span></h2><p data-homepage="intro_text">La vente, le conseil et l’accompagnement des clients en boutique mobilisent des compétences et un engagement essentiels. FO Free Distribution porte la parole des salariés et défend leurs intérêts professionnels.</p><div class="intro-pillars"><span><b>01</b> Être à votre écoute</span><span><b>02</b> Défendre vos droits</span><span><b>03</b> Obtenir des avancées</span></div></div>
     </section>
 
     <section class="section light-section" id="actualites">
-      <div class="section-heading"><div><span class="eyebrow" data-homepage="news_eyebrow">Restez informés</span><h2 data-homepage="news_title">Actualités</h2></div><span class="section-note" data-homepage="news_note">Les informations dédiées à Free Distributions</span></div>
+      <div class="section-heading"><div><span class="eyebrow" data-homepage="news_eyebrow">Restez informés</span><h2 data-homepage="news_title">Actualités</h2></div><span class="section-note" data-homepage="news_note">Les informations dédiées à Free Distribution</span></div>
       <div id="articles-list" aria-live="polite">
         <div class="empty-state"><span class="empty-icon">✦</span><h3>Chargement des actualités…</h3><p>Nous récupérons les dernières publications.</p></div>
       </div>
@@ -259,7 +259,7 @@ document.querySelector('#app').innerHTML = `
 
     <section class="section claims-section" id="revendications">
       <div class="section-heading">
-        <div><span class="eyebrow" data-homepage="claims_eyebrow">Élections professionnelles · FO Free Distributions</span><h2 data-homepage="claims_title">Nos revendications</h2></div>
+        <div><span class="eyebrow" data-homepage="claims_eyebrow">Élections professionnelles · FO Free Distribution</span><h2 data-homepage="claims_title">Nos revendications</h2></div>
         <span class="section-note" data-homepage="claims_note">Un programme construit autour de vos attentes</span>
       </div>
       <p class="section-lead" data-homepage="claims_lead">Notre ambition : obtenir des avancées concrètes sur les salaires, les commissions, les conditions de travail et la reconnaissance des équipes en boutique. Voici les engagements que FO souhaite porter avec vous.</p>
@@ -299,7 +299,7 @@ document.querySelector('#app').innerHTML = `
       <div class="survey-intro">
         <span class="eyebrow" data-homepage="survey_eyebrow">Votre avis compte</span>
         <h2 data-homepage="survey_title">Donnez votre avis <span>en toute confidentialité.</span></h2>
-        <p data-homepage="survey_text">Cette consultation permet de faire remonter les attentes et les priorités des salariés de Free Distributions. Vos réponses sont enregistrées sans nom ni adresse e-mail.</p>
+        <p data-homepage="survey_text">Cette consultation permet de faire remonter les attentes et les priorités des salariés de Free Distribution. Vos réponses sont enregistrées sans nom ni adresse e-mail.</p>
         <div class="survey-privacy"><strong>Questionnaire anonyme</strong><span>Aucun nom ni e-mail n'est demandé. Évitez toutefois de mentionner des personnes ou des informations permettant de vous identifier dans votre commentaire.</span></div>
       </div>
       <form id="fd-survey-form" class="survey-form">
@@ -355,12 +355,12 @@ document.querySelector('#app').innerHTML = `
     </section>
 
     <section class="contact-section" id="contact">
-      <div><span class="eyebrow">Restons en contact</span><h2>Votre voix compte.</h2><p>Une question, une difficulté ou une idée à partager ? L’équipe FO Free Distributions sera à votre écoute.</p></div>
+      <div><span class="eyebrow">Restons en contact</span><h2>Votre voix compte.</h2><p>Une question, une difficulté ou une idée à partager ? L’équipe FO Free Distribution sera à votre écoute.</p></div>
       <a class="button button-white" href="/contact">Nous contacter <span>→</span></a>
     </section>
   </main>
 
-  <footer class="site-footer"><a class="footer-brand" href="#accueil"><img class="footer-logo" src="/logo-focom-fond-rouge.png" alt="FOCOM"><span>FOCOM · Free Distributions</span></a><span>Un site dédié aux salariés de Free Distributions</span><nav class="footer-legal"><a href="/mentions-legales">Mentions légales</a><a href="/confidentialite">Confidentialité</a><a href="/cookies">Cookies</a></nav><a href="#accueil">Retour en haut ↑</a></footer>
+  <footer class="site-footer"><a class="footer-brand" href="#accueil"><img class="footer-logo" src="/logo-focom-fond-rouge.png" alt="FOCOM"><span>FOCOM · Free Distribution</span></a><span>Un site dédié aux salariés de Free Distribution</span><nav class="footer-legal"><a href="/mentions-legales">Mentions légales</a><a href="/confidentialite">Confidentialité</a><a href="/cookies">Cookies</a></nav><a href="#accueil">Retour en haut ↑</a></footer>
 `;
 
 (async () => {
@@ -423,7 +423,7 @@ async function loadArticles() {
     const articles = Array.isArray(data.articles) ? data.articles : [];
 
     if (!articles.length) {
-      articlesList.innerHTML = `<div class="empty-state"><span class="empty-icon">✦</span><h3>Les actualités arrivent bientôt</h3><p>Retrouvez ici les informations, prises de position et communications de FO Free Distributions.</p></div>`;
+      articlesList.innerHTML = `<div class="empty-state"><span class="empty-icon">✦</span><h3>Les actualités arrivent bientôt</h3><p>Retrouvez ici les informations, prises de position et communications de FO Free Distribution.</p></div>`;
       return;
     }
 
