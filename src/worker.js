@@ -534,6 +534,67 @@ export default {
       }
     }
 
+    if (url.pathname === "/robots.txt" && request.method === "GET") {
+      return new Response("User-agent: *\\nAllow: /\\nDisallow: /admin\\nDisallow: /api/\\nSitemap: https://fd.focom-iliad.fr/sitemap.xml\\n", {
+        headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "public, max-age=3600" }
+      });
+    }
+
+    if (url.pathname === "/sitemap.xml" && request.method === "GET") {
+      try {
+        const result = await withDatabase(env, db => db.query(
+          "SELECT slug, updated_at, published_at FROM articles WHERE status='published' AND published_at <= NOW() ORDER BY published_at DESC LIMIT 1000"
+        ));
+        const entries = result.rows.map(article => {
+          const loc = "https://fd.focom-iliad.fr/actualites/" + encodeURIComponent(article.slug);
+          const lastmod = new Date(article.updated_at || article.published_at).toISOString();
+          return "<url><loc>" + loc + "</loc><lastmod>" + lastmod + "</lastmod></url>";
+        }).join("");
+        const xml = '<?xml version="1.0" encoding="UTF-8"?>' +
+          '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' +
+          '<url><loc>https://fd.focom-iliad.fr/</loc></url>' + entries + '</urlset>';
+        return new Response(xml, { headers: { "content-type": "application/xml; charset=utf-8", "cache-control": "public, max-age=3600" } });
+      } catch (error) {
+        console.error("Sitemap generation failed:", error.message);
+        return new Response("Sitemap temporairement indisponible", { status: 503 });
+      }
+    }
+
+    const seoArticleMatch = url.pathname.match(/^\\/actualites\\/([a-z0-9-]+)\\/?$/i);
+    if (seoArticleMatch && request.method === "GET") {
+      try {
+        const slug = decodeURIComponent(seoArticleMatch[1]);
+        const result = await withDatabase(env, db => db.query(
+          "SELECT title, excerpt, cover_image_url, category FROM articles WHERE slug=$1 AND status='published' AND published_at <= NOW() LIMIT 1",
+          [slug]
+        ));
+        if (!result.rows.length) return new Response("Article introuvable", { status: 404 });
+        const article = result.rows[0];
+        const escapeMeta = value => String(value || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+        const description = escapeMeta((article.excerpt || article.title).replace(/\\s+/g, " ").slice(0, 250));
+        const title = escapeMeta(article.title + " – FO Free Distributions");
+        const canonical = "https://fd.focom-iliad.fr/actualites/" + encodeURIComponent(slug);
+        const image = article.cover_image_url ? '<meta property="og:image" content="' + escapeMeta(article.cover_image_url) + '">' : "";
+        const tags = '<title>' + title + '</title>' +
+          '<meta name="description" content="' + description + '">' +
+          '<link rel="canonical" href="' + canonical + '">' +
+          '<meta property="og:type" content="article">' +
+          '<meta property="og:site_name" content="FO Free Distributions">' +
+          '<meta property="og:title" content="' + title + '">' +
+          '<meta property="og:description" content="' + description + '">' +
+          '<meta property="og:url" content="' + canonical + '">' + image +
+          '<meta name="twitter:card" content="' + (article.cover_image_url ? "summary_large_image" : "summary") + '">' +
+          '<meta name="twitter:title" content="' + title + '">' +
+          '<meta name="twitter:description" content="' + description + '">';
+        const page = await env.ASSETS.fetch(new Request(new URL("/index.html", request.url), request));
+        const html = (await page.text()).replace("</head>", tags + "</head>");
+        return new Response(html, { status: 200, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300" } });
+      } catch (error) {
+        console.error("Article SEO page failed:", error.message);
+        return new Response("Page temporairement indisponible", { status: 503 });
+      }
+    }
+
     const publicArticleMatch = url.pathname.match(/^\/api\/articles\/([a-z0-9-]+)\/?$/i);
     if (publicArticleMatch && request.method === "GET") {
       try {
