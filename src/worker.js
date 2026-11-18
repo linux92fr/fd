@@ -714,10 +714,27 @@ export default {
 
 
     if(url.pathname==="/newsletter/desinscription"&&(request.method==="GET"||request.method==="POST")){
-      const token=url.searchParams.get("token")||"";let message="Ce lien est invalide ou expiré.";
-      if(/^[0-9a-f-]{36}$/i.test(token)){try{const r=await withDatabase(env,db=>db.query("UPDATE public.newsletter_subscribers SET status='unsubscribed',unsubscribed_at=NOW() WHERE unsubscribe_token=$1::uuid AND status='subscribed' RETURNING email",[token]));if(r.rowCount)message="Votre désinscription a bien été prise en compte.";}catch(e){console.error("Newsletter unsubscribe:",e?.code||e?.name||"unknown");}}
-      if(request.method==="POST") return new Response("Désinscription prise en compte",{status:200,headers:{"content-type":"text/plain; charset=utf-8","cache-control":"no-store"}});
-      return new Response('<!doctype html><html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Désinscription</title><body style="font:16px Arial;max-width:620px;margin:12vh auto;padding:24px"><h1>FO Free Distribution</h1><p>'+message+'</p><a href="https://fd.focom-iliad.fr/">Retour au site</a></body></html>',{headers:{"content-type":"text/html; charset=utf-8","cache-control":"no-store"}});
+      const token=url.searchParams.get("token")||"";
+      const validToken=/^[0-9a-f-]{36}$/i.test(token);
+      const headers={"content-type":"text/html; charset=utf-8","cache-control":"no-store","x-content-type-options":"nosniff"};
+      if(request.method==="GET"){
+        const message=validToken
+          ? "Pour confirmer votre désinscription de la newsletter FO Free Distribution, cliquez sur le bouton ci-dessous."
+          : "Ce lien de désinscription est invalide ou expiré.";
+        const action=validToken
+          ? '<form method="post" action="/newsletter/desinscription?token='+encodeURIComponent(token)+'"><button type="submit">Confirmer ma désinscription</button></form>'
+          : "";
+        return new Response('<!doctype html><html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Désinscription</title><body style="font:16px Arial;max-width:620px;margin:12vh auto;padding:24px"><h1>FO Free Distribution</h1><p>'+message+'</p>'+action+'<p><a href="https://fd.focom-iliad.fr/">Retour au site</a></p></body></html>',{headers});
+      }
+      if(!validToken) return new Response("Lien de désinscription invalide ou expiré.",{status:400,headers});
+      try{
+        const r=await withDatabase(env,db=>db.query("UPDATE public.newsletter_subscribers SET status='unsubscribed',unsubscribed_at=NOW() WHERE unsubscribe_token=$1::uuid AND status='subscribed' RETURNING email",[token]));
+        const message=r.rowCount?"Votre désinscription a bien été prise en compte.":"Cette adresse était déjà désinscrite ou le lien est expiré.";
+        return new Response('<!doctype html><html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Désinscription confirmée</title><body style="font:16px Arial;max-width:620px;margin:12vh auto;padding:24px"><h1>FO Free Distribution</h1><p>'+message+'</p><a href="https://fd.focom-iliad.fr/">Retour au site</a></body></html>',{headers});
+      }catch(e){
+        console.error("Newsletter unsubscribe:",e?.code||e?.name||"unknown");
+        return new Response("La désinscription n'a pas pu être enregistrée. Merci de réessayer.",{status:503,headers});
+      }
     }
 
     if (url.pathname.startsWith("/api/admin/")) {
