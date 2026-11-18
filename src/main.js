@@ -43,7 +43,7 @@ if (/^\/admin\/?$/.test(location.pathname)) {
     <header class="site-header">
       <a class="brand" href="/" aria-label="FO Free Distribution, accueil">
         <img class="brand-logo" src="/logo-focom-fond-rouge.png" alt="FOCOM">
-        <span class="brand-copy"><strong>FOCOM</strong><b><em>Free</em> Distributions</b><small>Le syndicat des salariés de Free Distribution</small></span>
+        <span class="brand-copy"><strong>FOCOM</strong><b><em>Free</em> Distribution</b><small>Le syndicat des salariés de Free Distribution</small></span>
       </a>
       <a class="button button-outline" href="/">← Retour à l'accueil</a>
     </header>
@@ -128,7 +128,7 @@ if (contactForm) {
     <header class="site-header article-detail-header">
       <a class="brand" href="/" aria-label="FO Free Distribution, accueil">
         <img class="brand-logo" src="/logo-focom-fond-rouge.png" alt="FOCOM">
-        <span class="brand-copy"><strong>FOCOM</strong><b><em>Free</em> Distributions</b><small>Le syndicat des salariés de Free Distribution</small></span>
+        <span class="brand-copy"><strong>FOCOM</strong><b><em>Free</em> Distribution</b><small>Le syndicat des salariés de Free Distribution</small></span>
       </a>
       <a class="button button-outline" href="/#actualites">← Toutes les actualités</a>
     </header>
@@ -212,7 +212,7 @@ document.querySelector('#app').innerHTML = `
   <header class="site-header">
     <a class="brand" href="#accueil" aria-label="FO Free Distribution, accueil">
       <img class="brand-logo" src="/logo-focom-fond-rouge.png" alt="FOCOM">
-      <span class="brand-copy"><strong>FOCOM</strong><b><em>Free</em> Distributions</b><small>Le syndicat des salariés de Free Distribution</small></span>
+      <span class="brand-copy"><strong>FOCOM</strong><b><em>Free</em> Distribution</b><small>Le syndicat des salariés de Free Distribution</small></span>
     </a>
     <button class="menu-toggle" aria-label="Ouvrir le menu" aria-expanded="false">☰</button>
     <nav class="main-nav" aria-label="Navigation principale">
