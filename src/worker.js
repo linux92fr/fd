@@ -346,6 +346,40 @@ async function handleAdmin(request, env, url, origin) {
   const admin = access.admin;
 
 
+  if (url.pathname === "/api/admin/users" && request.method === "GET") {
+    const r = await withDatabase(env, db => db.query(
+      `SELECT u.id, u.name, u.email, u."emailVerified" AS email_verified, u."createdAt" AS created_at,
+              COALESCE(a.role, CASE WHEN lower(u.email) = lower($1) THEN 'admin' ELSE 'employee' END) AS role,
+              COALESCE(a.status, CASE WHEN lower(u.email) = lower($1) THEN 'active' ELSE 'pending' END) AS status
+       FROM neon_auth."user" u LEFT JOIN public.site_user_access a ON a.user_id = u.id
+       ORDER BY u."createdAt" DESC LIMIT 500`, [ADMIN_EMAIL]
+    ));
+    return json({ users: r.rows }, 200, origin);
+  }
+  const userId = url.pathname.startsWith("/api/admin/users/") ? url.pathname.slice("/api/admin/users/".length) : "";
+  if (/^[0-9a-f-]{36}$/i.test(userId) && request.method === "PATCH") {
+    let body;
+    try { body = await request.json(); } catch { return json({ error: "INVALID_JSON" }, 400, origin); }
+    const role = body.role, status = body.status;
+    if (!["admin", "editor", "employee"].includes(role) || !["pending", "active", "suspended"].includes(status)) return json({ error: "INVALID_ROLE_OR_STATUS" }, 400, origin);
+    const result = await withDatabase(env, async db => {
+      const target = await db.query('SELECT id, email FROM neon_auth."user" WHERE id = $1', [userId]);
+      if (!target.rows[0]) return { missing: true };
+      if (target.rows[0].email.toLowerCase() === ADMIN_EMAIL.toLowerCase() && (role !== "admin" || status !== "active")) return { protected: true };
+      await db.query(
+        `INSERT INTO public.site_user_access (user_id, role, status, approved_by, approved_at, updated_at)
+         VALUES ($1, $2, $3, $4, CASE WHEN $3 = 'active' THEN now() ELSE NULL END, now())
+         ON CONFLICT (user_id) DO UPDATE SET role = EXCLUDED.role, status = EXCLUDED.status,
+           approved_by = EXCLUDED.approved_by, approved_at = EXCLUDED.approved_at, updated_at = now()`,
+        [userId, role, status, admin.id]
+      );
+      return { updated: true };
+    });
+    if (result.missing) return json({ error: "USER_NOT_FOUND" }, 404, origin);
+    if (result.protected) return json({ error: "SUPER_ADMIN_PROTECTED" }, 403, origin);
+    return json({ success: true }, 200, origin);
+  }
+
   if (url.pathname === "/api/admin/newsletter/brevo-status" && request.method === "GET") {
     // Read-only authentication check. Never sends email and never exposes the API key.
     if (!env.BREVO_API_KEY) return json({ configured: false, valid: false }, 200, origin);

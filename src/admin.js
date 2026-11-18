@@ -135,7 +135,7 @@ function passwordReset() {
 async function dashboard() {
   try {
     const { overview = {} } = await call('/api/admin/overview');
-    frame('<div class="admin-title-row"><div><span class="eyebrow">Espace sécurisé FO</span><h1>Tableau de bord</h1><p>Vue d’ensemble de l’activité du site et accès rapide aux outils de gestion.</p></div><button id="logout" class="button button-outline-dark">Déconnexion</button></div><section class="admin-panel"><div class="admin-toolbar"><h2>Vue d’ensemble</h2><button id="refresh-overview" class="button button-outline-dark">Actualiser</button></div><div class="admin-stats-grid"><article class="admin-stat"><span>Articles</span><strong>' + Number(overview.articles_total || 0) + '</strong><small>' + Number(overview.articles_published || 0) + ' publiés · ' + Number(overview.articles_draft || 0) + ' brouillons</small></article><article class="admin-stat"><span>Messages reçus</span><strong>' + Number(overview.messages_total || 0) + '</strong><small>' + Number(overview.messages_new || 0) + ' nouveaux · ' + Number(overview.messages_in_progress || 0) + ' en cours</small></article><article class="admin-stat"><span>Messages traités</span><strong>' + Number(overview.messages_resolved || 0) + '</strong><small>Demandes marquées comme traitées</small></article></div></section><section class="admin-panel"><div class="admin-toolbar"><h2>Accès rapides</h2></div><div class="admin-quick-links"><button id="open-articles" class="button button-red">Gérer les articles</button><button id="open-messages" class="button button-outline-dark">Messages reçus</button><button id="open-survey" class="button button-outline-dark">Bilan du questionnaire</button><button id="open-media" class="button button-outline-dark">Médiathèque</button><button id="open-homepage" class="button button-outline-dark">Page d’accueil</button><button id="open-newsletter" class="button button-outline-dark">Newsletter</button></div><p class="admin-help">Le bilan du questionnaire reste dans son espace sécurisé dédié. Les médias et les autres réglages seront ajoutés progressivement.</p></section>');
+    frame('<div class="admin-title-row"><div><span class="eyebrow">Espace sécurisé FO</span><h1>Tableau de bord</h1><p>Vue d’ensemble de l’activité du site et accès rapide aux outils de gestion.</p></div><button id="logout" class="button button-outline-dark">Déconnexion</button></div><section class="admin-panel"><div class="admin-toolbar"><h2>Vue d’ensemble</h2><button id="refresh-overview" class="button button-outline-dark">Actualiser</button></div><div class="admin-stats-grid"><article class="admin-stat"><span>Articles</span><strong>' + Number(overview.articles_total || 0) + '</strong><small>' + Number(overview.articles_published || 0) + ' publiés · ' + Number(overview.articles_draft || 0) + ' brouillons</small></article><article class="admin-stat"><span>Messages reçus</span><strong>' + Number(overview.messages_total || 0) + '</strong><small>' + Number(overview.messages_new || 0) + ' nouveaux · ' + Number(overview.messages_in_progress || 0) + ' en cours</small></article><article class="admin-stat"><span>Messages traités</span><strong>' + Number(overview.messages_resolved || 0) + '</strong><small>Demandes marquées comme traitées</small></article></div></section><section class="admin-panel"><div class="admin-toolbar"><h2>Accès rapides</h2></div><div class="admin-quick-links"><button id="open-articles" class="button button-red">Gérer les articles</button><button id="open-messages" class="button button-outline-dark">Messages reçus</button><button id="open-survey" class="button button-outline-dark">Bilan du questionnaire</button><button id="open-media" class="button button-outline-dark">Médiathèque</button><button id="open-homepage" class="button button-outline-dark">Page d’accueil</button><button id="open-newsletter" class="button button-outline-dark">Newsletter</button><button id="open-users" class="button button-outline-dark">Utilisateurs et rôles</button></div><p class="admin-help">Le bilan du questionnaire reste dans son espace sécurisé dédié. Les médias et les autres réglages seront ajoutés progressivement.</p></section>');
     root.querySelector('#logout').onclick = async () => { await auth.signOut(); login('Vous êtes déconnecté.'); };
     root.querySelector('#refresh-overview').onclick = () => dashboard();
     root.querySelector('#open-articles').onclick = () => articlesPage();
@@ -144,6 +144,7 @@ async function dashboard() {
     root.querySelector('#open-media').onclick = () => mediaPage();
     root.querySelector('#open-homepage').onclick = () => homepagePage();
     root.querySelector('#open-newsletter').onclick = () => newsletterPage({ call, frame, root, dashboard });
+    root.querySelector('#open-users').onclick = () => usersPage();
   } catch (err) { login('Impossible de charger le tableau de bord : ' + (err.message || 'ERREUR_INCONNUE') + '.'); }
 }
 async function surveyPage() {
@@ -174,6 +175,28 @@ async function surveyPage() {
       link.href=url;link.download='fd-questionnaire-reponses-anonymes.csv';link.click();URL.revokeObjectURL(url);
     };
   } catch (err) { login('Impossible de charger les résultats : '+(err.message||'ERREUR_INCONNUE')+'.'); }
+}
+
+async function usersPage() {
+  try {
+    const { users = [] } = await call('/api/admin/users');
+    const rows = users.map(user => {
+      const role = ['admin','editor','employee'].includes(user.role) ? user.role : 'employee';
+      const status = ['pending','active','suspended'].includes(user.status) ? user.status : 'pending';
+      const locked = user.email.toLowerCase() === 'free-distri@focom-iliad.fr';
+      return '<tr><td><strong>' + esc(user.name || '—') + '</strong><small>' + esc(user.email) + '</small></td><td>' + (user.email_verified ? 'Vérifiée' : 'Non vérifiée') + '</td><td><select class="user-role" data-id="' + esc(user.id) + '"' + (locked ? ' disabled' : '') + '><option value="employee"' + (role === 'employee' ? ' selected' : '') + '>Salarié / adhérent</option><option value="editor"' + (role === 'editor' ? ' selected' : '') + '>Rédacteur</option><option value="admin"' + (role === 'admin' ? ' selected' : '') + '>Administrateur</option></select></td><td><select class="user-status" data-id="' + esc(user.id) + '"' + (locked ? ' disabled' : '') + '><option value="pending"' + (status === 'pending' ? ' selected' : '') + '>En attente</option><option value="active"' + (status === 'active' ? ' selected' : '') + '>Actif</option><option value="suspended"' + (status === 'suspended' ? ' selected' : '') + '>Suspendu</option></select></td><td>' + (locked ? 'Compte principal protégé' : '<button class="button button-outline-dark user-save" data-id="' + esc(user.id) + '">Enregistrer</button>') + '</td></tr>';
+    }).join('');
+    frame('<div class="admin-title-row"><div><span class="eyebrow">Gestion des accès</span><h1>Utilisateurs et rôles</h1><p>Consultez les comptes existants, attribuez un rôle et activez ou suspendez leur accès.</p></div><button id="logout" class="button button-outline-dark">Déconnexion</button></div><section class="admin-panel"><div class="admin-toolbar"><h2>' + users.length + ' compte(s)</h2><div class="admin-form-actions"><button id="back-dashboard" class="button button-outline-dark">← Tableau de bord</button><button id="refresh-users" class="button button-outline-dark">Actualiser</button></div></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Compte</th><th>E-mail</th><th>Rôle</th><th>État</th><th>Action</th></tr></thead><tbody>' + (rows || '<tr><td colspan="5">Aucun compte.</td></tr>') + '</tbody></table></div><p class="admin-message" id="users-status" role="status"></p><p class="admin-help">Les nouveaux comptes sont classés en attente par défaut. L’inscription publique reste désactivée. Le compte administrateur principal ne peut pas être modifié ici.</p></section>');
+    root.querySelector('#logout').onclick = async () => { await auth.signOut(); login('Vous êtes déconnecté.'); };
+    root.querySelector('#back-dashboard').onclick = () => dashboard();
+    root.querySelector('#refresh-users').onclick = () => usersPage();
+    root.querySelectorAll('.user-save').forEach(button => button.onclick = async () => {
+      const id = button.dataset.id, role = root.querySelector('.user-role[data-id="' + id + '"]').value, status = root.querySelector('.user-status[data-id="' + id + '"]').value;
+      button.disabled = true;
+      try { await call('/api/admin/users/' + encodeURIComponent(id), { method: 'PATCH', body: JSON.stringify({ role, status }) }); root.querySelector('#users-status').textContent = 'Rôle et état enregistrés.'; }
+      catch (err) { root.querySelector('#users-status').textContent = 'Modification impossible : ' + err.message; button.disabled = false; }
+    });
+  } catch (err) { login('Impossible de charger les utilisateurs : ' + (err.message || 'ERREUR_INCONNUE') + '.'); }
 }
 
 async function homepagePage(overrides = null) {
