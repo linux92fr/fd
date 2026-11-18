@@ -518,6 +518,33 @@ function renderAccountEmail(type, name) {
 }
 
 
+async function sendAccountEmailDetailed(env, recipient, name, type) {
+  const email = renderAccountEmail(type, name);
+  if (!email) return { sent: false, reason: "INVALID_TEMPLATE" };
+  if (!env.BREVO_API_KEY) return { sent: false, reason: "BREVO_API_KEY_MISSING" };
+  try {
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: { "accept": "application/json", "api-key": env.BREVO_API_KEY, "content-type": "application/json" },
+      body: JSON.stringify({
+        sender: { name: "FO Free Distribution", email: "contact@focom-iliad.fr" },
+        to: [{ email: recipient }],
+        subject: email.subject,
+        htmlContent: email.html,
+        textContent: email.text,
+      }),
+    });
+    if (response.ok) return { sent: true, status: response.status };
+    const detail = await response.json().catch(() => ({}));
+    const message = String(detail.message || detail.code || "Brevo a refusé la demande").slice(0, 180);
+    console.error("Account email delivery failed:", type, response.status, message);
+    return { sent: false, status: response.status, reason: message };
+  } catch (error) {
+    console.error("Account email request failed:", type, error?.name || "unknown");
+    return { sent: false, reason: "NETWORK_ERROR" };
+  }
+}
+
 async function sendAccountEmail(env, recipient, name, type) {
   const email = renderAccountEmail(type, name);
   if (!email || !env.BREVO_API_KEY) return false;
@@ -610,6 +637,18 @@ async function handleAdmin(request, env, url, origin) {
       console.error("Neon user creation request failed:", error?.name || "unknown");
       return json({ error: "NEON_API_UNAVAILABLE", message: "Le service de création de compte est momentanément indisponible." }, 503, origin);
     }
+  }
+
+  const resendWelcomeMatch = url.pathname.match(/^\\/api\\/admin\\/users\\/([0-9a-f-]{36})\\/send-welcome$/i);
+  if (resendWelcomeMatch && request.method === "POST") {
+    if (!isAdmin) return json({ error: "SUPER_ADMIN_REQUIRED" }, 403, origin);
+    const result = await withDatabase(env, db => db.query(
+      'SELECT u.email, u.name FROM neon_auth."user" u JOIN public.site_user_access a ON a.user_id=u.id WHERE u.id=$1 AND a.status=\'pending\'',
+      [resendWelcomeMatch[1]]
+    ));
+    if (!result.rows.length) return json({ error: "PENDING_USER_NOT_FOUND" }, 404, origin);
+    const delivery = await sendAccountEmailDetailed(env, result.rows[0].email, result.rows[0].name, "welcome");
+    return json({ success: delivery.sent, emailSent: delivery.sent, diagnostic: delivery }, delivery.sent ? 200 : 502, origin);
   }
 
   if (url.pathname === "/api/admin/users" && request.method === "GET") {
