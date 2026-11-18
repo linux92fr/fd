@@ -303,34 +303,39 @@ $('#csv').onclick=csv;$('#pdf').onclick=()=>window.print();$('#refresh').onclick
 </script></body></html>`;
 }
 
-async function requireAdmin(request, env) {
+async function requireSiteAccess(request, env) {
   const authorization = request.headers.get("Authorization") || "";
   const token = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
   if (!token || token.length > 8192) return { denied: "TOKEN_MISSING" };
-
   let payload;
   try {
     ({ payload } = await jwtVerify(token, AUTH_JWKS, { issuer: AUTH_ISSUER }));
   } catch (error) {
     const code = String(error.code || error.name || "UNKNOWN").replace(/[^A-Z0-9_]/gi, "").slice(0, 64);
-    console.warn("Admin JWT verification failed:", code);
+    console.warn("Site access JWT verification failed:", code);
     return { denied: "JWT_VERIFICATION_FAILED_" + code };
   }
   if (typeof payload.sub !== "string") return { denied: "TOKEN_SUBJECT_MISSING" };
-
   try {
-    return await withDatabase(env, async (db) => {
+    return await withDatabase(env, async db => {
       const result = await db.query(
-        'SELECT id, email, role FROM neon_auth."user" WHERE id = $1 AND email = $2 AND "emailVerified" = TRUE',
+        `SELECT u.id, u.email, u.name,
+                CASE WHEN lower(u.email) = lower($2) THEN 'admin' ELSE COALESCE(a.role, 'employee') END AS role,
+                CASE WHEN lower(u.email) = lower($2) THEN 'active' ELSE COALESCE(a.status, 'pending') END AS status
+         FROM neon_auth."user" u
+         LEFT JOIN public.site_user_access a ON a.user_id = u.id
+         WHERE u.id = $1 AND u."emailVerified" = TRUE`,
         [payload.sub, ADMIN_EMAIL]
       );
-      if (!result.rows[0]) return { denied: "USER_NOT_FOUND_OR_EMAIL_UNVERIFIED" };
-      if (result.rows[0].role !== "admin") return { denied: "USER_ROLE_NOT_ADMIN" };
-      return { admin: result.rows[0] };
+      const user = result.rows[0];
+      if (!user) return { denied: "USER_NOT_FOUND_OR_EMAIL_UNVERIFIED" };
+      if (user.status !== "active") return { denied: user.status === "suspended" ? "ACCOUNT_SUSPENDED" : "ACCOUNT_PENDING_APPROVAL" };
+      if (!["admin", "editor", "employee"].includes(user.role)) return { denied: "INVALID_SITE_ROLE" };
+      return { user };
     });
   } catch (error) {
     const code = String(error.code || error.name || "UNKNOWN").replace(/[^A-Z0-9_]/gi, "").slice(0, 64);
-    console.error("Admin database check failed:", code);
+    console.error("Site access database check failed:", code);
     return { denied: "DATABASE_CHECK_FAILED_" + code };
   }
 }
@@ -341,9 +346,13 @@ function slugify(value) {
 }
 
 async function handleAdmin(request, env, url, origin) {
-  const access = await requireAdmin(request, env);
+  const access = await requireSiteAccess(request, env);
   if (access.denied) return json({ error: access.denied }, 401, origin);
-  const admin = access.admin;
+  const admin = access.user;
+  const isAdmin = admin.role === "admin";
+  const isEditor = admin.role === "editor";
+  const editorAllowed = url.pathname === "/api/admin/articles" || url.pathname === "/api/admin/overview" || /^\/api\/admin\/articles\/\d+$/.test(url.pathname);
+  if (admin.role === "employee" || (isEditor && !editorAllowed)) return json({ error: "INSUFFICIENT_PERMISSIONS" }, 403, origin);
 
 
   if (url.pathname === "/api/admin/users" && request.method === "GET") {
@@ -609,7 +618,7 @@ async function handleAdmin(request, env, url, origin) {
 
   const messageMatch = url.pathname.match(/^\/api\/admin\/messages\/(\d+)$/);
   if (messageMatch && request.method === "DELETE") {
-    if (admin.email.toLowerCase() !== ADMIN_EMAIL) return json({ error: "SUPER_ADMIN_REQUIRED" }, 403, origin);
+    if (!isAdmin || admin.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) return json({ error: "SUPER_ADMIN_REQUIRED" }, 403, origin);
     const result = await withDatabase(env, db => db.query(
       "DELETE FROM public.contact_messages WHERE id=$1::bigint RETURNING id",
       [Number(messageMatch[1])]
