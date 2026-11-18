@@ -187,21 +187,33 @@ async function homepagePage() {
       ['rights_eyebrow','Droits — petit titre'],['rights_title','Droits — titre'],['rights_lead','Droits — introduction'],
       ['survey_eyebrow','Questionnaire — petit titre'],['survey_title','Questionnaire — titre'],['survey_text','Questionnaire — introduction']
     ];
-    frame('<div class="admin-title-row"><div><span class="eyebrow">Contenu du site</span><h1>Page d’accueil</h1><p>Modifiez les textes principaux affichés sur la page d’accueil. Les articles, revendications détaillées et questions du questionnaire restent gérés dans leurs espaces respectifs.</p></div><button id="logout" class="button button-outline-dark">Déconnexion</button></div><section class="admin-panel"><div class="admin-toolbar"><h2>Textes de la page d’accueil</h2><button id="back-dashboard" class="button button-outline-dark">← Tableau de bord</button></div><form id="homepage-form" class="admin-form-grid">' + fields.map(([key,label]) => '<label>' + esc(label) + (key.endsWith('_text') || key.endsWith('_lead') || key.endsWith('_title') ? '<textarea name="' + key + '" rows="' + (key.endsWith('_title') ? '2' : '4') + '">' + esc(content[key] || '') + '</textarea>' : '<input name="' + key + '" value="' + esc(content[key] || '') + '">') + '</label>').join('') + '<div class="admin-form-actions"><button class="button button-red" type="submit">Enregistrer les modifications</button><button class="button button-outline-dark" type="button" id="reset-homepage">Recharger les textes actuels</button></div><p class="admin-message" id="homepage-status" role="status"></p></form></section>');
+    frame('<div class="admin-title-row"><div><span class="eyebrow">Contenu du site</span><h1>Page d’accueil</h1><p>Modifiez les textes principaux affichés sur la page d’accueil. Les articles, revendications détaillées et questions du questionnaire restent gérés dans leurs espaces respectifs.</p></div><button id="logout" class="button button-outline-dark">Déconnexion</button></div><section class="admin-panel"><div class="admin-toolbar"><h2>Textes de la page d’accueil</h2><button id="back-dashboard" class="button button-outline-dark">← Tableau de bord</button></div><form id="homepage-form" class="admin-form-grid">' + fields.map(([key,label]) => '<label>' + esc(label) + (key.endsWith('_text') || key.endsWith('_lead') || key.endsWith('_title') ? '<textarea name="' + key + '" rows="' + (key.endsWith('_title') ? '2' : '4') + '">' + esc(content[key] || '') + '</textarea>' : '<input name="' + key + '" value="' + esc(content[key] || '') + '">') + '</label>').join('') + '<div class="admin-form-actions"><button class="button button-red" type="submit">Enregistrer les modifications</button><button class="button button-outline-dark" type="button" id="reset-homepage">Recharger les textes actuels</button></div><p class="admin-message" id="homepage-status" role="status"></p></form></section><section class="admin-panel homepage-preview-panel"><div class="admin-toolbar"><div><span class="eyebrow">Aperçu instantané</span><h2>Rendu de l’accueil</h2></div><span class="preview-status">Non publié tant que vous n’enregistrez pas</span></div><div class="homepage-preview"><div class="homepage-preview-copy"><span class="preview-category" id="home-preview-eyebrow"></span><h2 id="home-preview-title"></h2><p id="home-preview-text"></p><div class="homepage-preview-buttons"><span class="button button-red" id="home-preview-primary"></span><span class="button button-outline-dark" id="home-preview-secondary"></span></div></div><div class="homepage-preview-art"><span>FO</span><small>FREE DISTRIBUTIONS</small></div></div></section>');
     root.querySelector('#logout').onclick = async () => { await auth.signOut(); login('Vous êtes déconnecté.'); };
     root.querySelector('#back-dashboard').onclick = () => dashboard();
     root.querySelector('#reset-homepage').onclick = () => homepagePage();
-    root.querySelector('#homepage-form').addEventListener('submit', async event => {
+    const form = root.querySelector('#homepage-form');
+    const preview = () => {
+      const value = key => form.elements.namedItem(key)?.value || '';
+      root.querySelector('#home-preview-eyebrow').textContent = value('hero_eyebrow');
+      root.querySelector('#home-preview-title').textContent = value('hero_title');
+      root.querySelector('#home-preview-text').textContent = value('hero_text');
+      root.querySelector('#home-preview-primary').textContent = value('hero_primary_label') || 'Bouton principal';
+      const secondary = root.querySelector('#home-preview-secondary');
+      secondary.textContent = value('hero_secondary_label');
+      secondary.hidden = !value('hero_secondary_label').trim();
+    };
+    form.addEventListener('input', preview);
+    preview();
+    form.addEventListener('submit', async event => {
       event.preventDefault();
-      const form = event.currentTarget;
       const button = form.querySelector('button[type="submit"]');
-      const content = {};
-      for (const [key] of fields) content[key] = form.elements.namedItem(key).value;
+      const updated = {};
+      for (const [key] of fields) updated[key] = form.elements.namedItem(key).value;
       button.disabled = true;
       const status = root.querySelector('#homepage-status');
       status.textContent = 'Enregistrement…';
       try {
-        await call('/api/admin/homepage', { method: 'PUT', body: JSON.stringify({ content }) });
+        await call('/api/admin/homepage', { method: 'PUT', body: JSON.stringify({ content: updated }) });
         status.textContent = 'Les textes de la page d’accueil ont été enregistrés.';
       } catch (error) {
         status.textContent = 'Enregistrement impossible : ' + error.message;
@@ -212,7 +224,6 @@ async function homepagePage() {
     root.querySelector('#back-dashboard').onclick = () => dashboard();
   }
 }
-
 async function mediaPage() {
   try {
     const { media = [], truncated = false } = await call('/api/admin/media');
