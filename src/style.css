@@ -648,3 +648,35 @@
   #questionnaires .rating-options small{font-size:9px}
   #questionnaires .survey-submit-row{align-items:stretch}
 }
+
+
+
+/* Tableau de bord du questionnaire : lecture rapide des résultats */
+.admin-main .admin-panel:has(.survey-admin-bar){padding:26px}
+.admin-main .admin-panel:has(.survey-admin-bar)>h2{display:flex;align-items:center;gap:12px;margin:0 0 22px;padding-bottom:15px;border-bottom:1px solid #ececf0;font-size:20px}
+.admin-main .admin-panel:has(.survey-admin-bar)>h2:before{content:"";width:5px;height:25px;border-radius:5px;background:var(--red)}
+.admin-stats-grid .admin-stat{position:relative;overflow:hidden;min-height:130px;padding:22px 24px;border-color:#e7e7ec;box-shadow:0 5px 18px rgba(20,20,30,.035)}
+.admin-stats-grid .admin-stat:after{content:"";position:absolute;right:-22px;bottom:-35px;width:100px;height:100px;border:16px solid #f8e9ec;border-radius:50%;pointer-events:none}
+.admin-stats-grid .admin-stat>strong{position:relative;z-index:1;font-size:clamp(29px,3vw,38px)}
+.survey-admin-bar{grid-template-columns:minmax(155px,1.1fr) minmax(100px,2fr) 76px;gap:15px;align-items:center;margin:13px 0;font-size:13px}
+.survey-admin-label{color:#454650;font-weight:650;line-height:1.4}
+.survey-admin-track{height:13px!important;background:#f0f0f3!important;border-radius:20px!important;overflow:hidden}
+.survey-admin-track i{min-width:0;background:linear-gradient(90deg,#b70d2c,#e34b65)!important;border-radius:20px;transition:width .35s ease}
+.survey-admin-value{display:flex;align-items:baseline;justify-content:flex-end;gap:6px;color:var(--ink)}
+.survey-admin-value strong{font-size:14px}
+.survey-admin-value small{color:#858590;font-size:10px;font-weight:600}
+.admin-main .admin-panel:has(.survey-admin-comments){background:#fff}
+.survey-admin-comments{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.survey-admin-comment{border-radius:10px;background:#fafafd;border-color:#e8e8ed;font-size:13px;line-height:1.75}
+@media(max-width:700px){
+  .admin-main .admin-panel:has(.survey-admin-bar){padding:19px}
+  .survey-admin-bar{grid-template-columns:minmax(0,1fr) 52px;gap:7px 12px;margin:16px 0}
+  .survey-admin-bar .survey-admin-track{grid-column:1/-1;grid-row:2}
+  .survey-admin-value{grid-column:2;grid-row:1}
+  .survey-admin-comments{grid-template-columns:1fr}
+}
+@media print{
+  .admin-main .admin-panel:has(.survey-admin-bar){break-inside:avoid;padding:16px}
+  .survey-admin-bar{grid-template-columns:180px 1fr 65px}
+  .survey-admin-comments{grid-template-columns:1fr 1fr}
+}
