@@ -415,3 +415,40 @@
   .homepage-preview{grid-template-columns:1fr;gap:20px}
   .homepage-preview-art{min-height:130px}
 }
+
+
+.homepage-preview-sections{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:16px;
+  margin-top:18px;
+}
+.homepage-preview-section{
+  min-width:0;
+  padding:22px;
+  border:1px solid #e5e5eb;
+  border-radius:11px;
+  background:#fff;
+}
+.homepage-preview-section .eyebrow{display:block;margin-bottom:10px}
+.homepage-preview-section h3{
+  margin:0 0 11px;
+  font-family:Manrope,sans-serif;
+  font-size:clamp(19px,2.3vw,25px);
+  line-height:1.25;
+  color:var(--ink);
+  overflow-wrap:anywhere;
+}
+.homepage-preview-section p{
+  margin:0 0 10px;
+  color:var(--muted);
+  font-size:14px;
+  line-height:1.75;
+  white-space:pre-line;
+  overflow-wrap:anywhere;
+}
+.homepage-preview-section small{display:block;margin-top:14px;color:#858791;font-size:11px;line-height:1.5}
+.homepage-preview-section .homepage-preview-note{font-weight:700;color:var(--ink)}
+.homepage-preview-survey{background:#fff8f9;border-color:#f0d9de}
+.homepage-preview-tag{display:inline-flex;margin-top:10px;padding:7px 10px;border-radius:20px;background:#fce9ed;color:#a70e2b;font-size:11px;font-weight:800}
+@media(max-width:700px){.homepage-preview-sections{grid-template-columns:1fr}.homepage-preview-section{padding:18px}}
