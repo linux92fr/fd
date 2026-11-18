@@ -363,7 +363,7 @@ async function handleAdmin(request, env, url, origin) {
         if(active.rows[0].n)return {error:"DELIVERY_STILL_RUNNING"};
         // Only stale attempts become uncertain; they are never resent automatically.
         await db.query("UPDATE public.newsletter_campaign_recipients SET status='unknown',last_error='Interruption pendant la tentative : résultat Brevo indéterminé',updated_at=NOW() WHERE campaign_id=$1 AND status='sending' AND updated_at<=NOW()-INTERVAL '5 minutes'",[id]);
-        if(action==="retry_failed")await db.query("UPDATE public.newsletter_campaign_recipients SET status='pending',last_error=NULL,updated_at=NOW() WHERE campaign_id=$1 AND status='failed'",[id]);
+        if(action==="retry_failed")await db.query("UPDATE public.newsletter_campaign_recipients r SET status='pending',last_error=NULL,updated_at=NOW() FROM public.newsletter_subscribers s WHERE r.campaign_id=$1 AND r.status='failed' AND s.id=r.subscriber_id AND s.status='subscribed'",[id]);
       }
       const counts=await db.query("SELECT COUNT(*)::int AS total, COUNT(*) FILTER(WHERE status='sent')::int AS sent, COUNT(*) FILTER(WHERE status='failed')::int AS failed, COUNT(*) FILTER(WHERE status='unknown')::int AS unknown, COUNT(*) FILTER(WHERE status='pending')::int AS pending FROM public.newsletter_campaign_recipients WHERE campaign_id=$1",[id]);
       if(!counts.rows[0].total)return {error:"NO_ACTIVE_SUBSCRIBERS"};
@@ -379,7 +379,7 @@ async function handleAdmin(request, env, url, origin) {
     let processed=0;
     while(processed<10){
       const item=await withDatabase(env,async db=>{
-        const r=await db.query("UPDATE public.newsletter_campaign_recipients SET status='sending',attempts=attempts+1,updated_at=NOW(),last_error=NULL WHERE id=(SELECT id FROM public.newsletter_campaign_recipients WHERE campaign_id=$1 AND status='pending' ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED) RETURNING id,email",[id]);
+        const r=await db.query("UPDATE public.newsletter_campaign_recipients cr SET status='sending',attempts=attempts+1,updated_at=NOW(),last_error=NULL WHERE cr.id=(SELECT cr2.id FROM public.newsletter_campaign_recipients cr2 JOIN public.newsletter_subscribers s ON s.id=cr2.subscriber_id AND s.status='subscribed' WHERE cr2.campaign_id=$1 AND cr2.status='pending' ORDER BY cr2.id LIMIT 1 FOR UPDATE OF cr2 SKIP LOCKED) RETURNING cr.id,cr.email",[id]);
         return r.rows[0]||null;
       });
       if(!item)break;
