@@ -412,7 +412,7 @@ async function handleAdmin(request, env, url, origin) {
     const final=await withDatabase(env,async db=>{
       const r=await db.query("SELECT COUNT(*) FILTER(WHERE status='sent')::int AS sent,COUNT(*) FILTER(WHERE status='failed')::int AS failed,COUNT(*) FILTER(WHERE status='unknown')::int AS unknown,COUNT(*) FILTER(WHERE status IN ('pending','sending'))::int AS remaining FROM public.newsletter_campaign_recipients WHERE campaign_id=$1",[id]);
       const x=r.rows[0],status=x.remaining?"sending":(x.failed||x.unknown)?"partial":"sent";
-      await db.query("UPDATE public.newsletter_campaigns SET status=$1,sent_count=$2,failed_count=$3,sent_at=CASE WHEN $1 IN ('sent','partial') THEN NOW() ELSE NULL END,updated_at=NOW() WHERE id=$4",[status,x.sent,x.failed+x.unknown,id]);
+      await db.query("UPDATE public.newsletter_campaigns SET status=$1,sent_count=$2,failed_count=$3,sent_at=CASE WHEN $4 THEN NOW() ELSE NULL END,updated_at=NOW() WHERE id=$5",[status,x.sent,x.failed+x.unknown,(status==="sent"||status==="partial"),id]);
       return {...x,status};
     });
     return json({ok:true,...final},200,origin);
