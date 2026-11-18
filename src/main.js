@@ -333,7 +333,7 @@ document.querySelector('#app').innerHTML = `
       image.alt = '';
       image.loading = 'lazy';
       section.insertBefore(image, section.firstChild);
-      if (key === 'hero_image') image.classList.add('homepage-managed-image-hero');
+      if (key === 'hero_image') { image.classList.add('homepage-managed-image-hero'); section.classList.add('has-custom-image'); }
     }
     document.querySelectorAll('[data-homepage]').forEach(node => {
       const key = node.dataset.homepage;
