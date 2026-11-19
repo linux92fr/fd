@@ -110,7 +110,7 @@ async function handleNewsletterSubscribe(request, env) {
     return json({ error: "RATE_LIMIT_UNAVAILABLE", message: "Inscription temporairement indisponible. Merci de réessayer." }, 503, origin);
   }
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-  if (email.length > 254 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return json({ error: "INVALID_EMAIL", message: "Vérifiez votre adresse e-mail." }, 400, origin);
   }
   if (body.consent_confirmed !== true) {
