@@ -5,12 +5,14 @@ const allowedOrigins = new Set(["https://fd-preview.linux92fr.workers.dev"]);
 const AUTH_BASE_URL = "https://ep-crimson-wave-b972yi2i.neonauth.c-7.eu-central-1.aws.neon.tech/neondb/auth";
 const AUTH_JWKS = createRemoteJWKSet(new URL(AUTH_BASE_URL + "/.well-known/jwks.json"));
 const AUTH_ISSUER = new URL(AUTH_BASE_URL).origin;
-const ADMIN_EMAIL = "free-distri@focom-iliad.fr";
+const ADMIN_EMAIL = "contact@focom-iliad.fr";
+const LEGACY_ADMIN_EMAIL = "free-distri@focom-iliad.fr";
+const isProtectedAdminEmail = email => [ADMIN_EMAIL, LEGACY_ADMIN_EMAIL].includes(String(email || "").toLowerCase());
 const HOMEPAGE_DEFAULTS = {"hero_eyebrow":"FOCOM · Free Distribution","hero_title":"La voix des salariés\ndes boutiques Free.","hero_text":"Un espace d’information, de dialogue et d’action syndicale dédié aux équipes de Free Distribution.","hero_primary_label":"Nos revendications","hero_primary_url":"#revendications","hero_secondary_label":"Nous contacter","hero_secondary_url":"/contact","intro_eyebrow":"Notre engagement","intro_title":"À vos côtés, au quotidien.","intro_text":"La vente, le conseil et l’accompagnement des clients en boutique mobilisent des compétences et un engagement essentiels. FO Free Distribution porte la parole des salariés et défend leurs intérêts professionnels.","news_eyebrow":"Restez informés","news_title":"Actualités","news_note":"Les informations dédiées à Free Distribution","claims_eyebrow":"Élections professionnelles · FO Free Distribution","claims_title":"Nos revendications","claims_lead":"Notre ambition : obtenir des avancées concrètes sur les salaires, les commissions, les conditions de travail et la reconnaissance des équipes en boutique. Voici les engagements que FO souhaite porter avec vous.","rights_eyebrow":"Mieux connaître vos droits","rights_title":"Vos droits au travail","rights_lead":"Des repères pratiques pour comprendre vos droits et savoir vers qui vous tourner. Les contenus détaillés seront publiés prochainement.","survey_eyebrow":"Votre avis compte","survey_title":"Donnez votre avis en toute confidentialité.","survey_text":"Cette consultation permet de faire remonter les attentes et les priorités des salariés de Free Distribution. Vos réponses sont enregistrées sans nom ni adresse e-mail.","hero_image":"","intro_image":"","news_image":"","claims_image":"","rights_image":"","survey_image":""};
 const SURVEY_ACCESS_ISSUER = "https://linux92fr.cloudflareaccess.com";
 const SURVEY_ACCESS_AUDIENCE = "e58983dc65cd10dd66fdb66e69e85c1e099f2427f9de1e8fb03b84b961bb22ed";
 const SURVEY_ACCESS_JWKS = createRemoteJWKSet(new URL(SURVEY_ACCESS_ISSUER + "/cdn-cgi/access/certs"));
-const SURVEY_ADMIN_EMAIL = "free-distri@focom-iliad.fr";
+const SURVEY_ADMIN_EMAILS = new Set([ADMIN_EMAIL, LEGACY_ADMIN_EMAIL]);
 
 function json(data, status = 200, origin = "") {
   const headers = {
@@ -62,7 +64,7 @@ async function requireSurveyAdmin(request) {
     const { payload } = await jwtVerify(assertion, SURVEY_ACCESS_JWKS, {
       issuer: SURVEY_ACCESS_ISSUER, audience: SURVEY_ACCESS_AUDIENCE,
     });
-    return typeof payload.email === "string" && payload.email.toLowerCase() === SURVEY_ADMIN_EMAIL;
+    return typeof payload.email === "string" && SURVEY_ADMIN_EMAILS.has(payload.email.toLowerCase());
   } catch (error) {
     console.warn("Survey Access JWT rejected:", error?.code || error?.name || "unknown");
     return false;
@@ -392,12 +394,12 @@ async function requireSiteAccess(request, env) {
     return await withDatabase(env, async db => {
       const result = await db.query(
         `SELECT u.id, u.email, u.name,
-                CASE WHEN lower(u.email) = lower($2) THEN 'admin' ELSE COALESCE(a.role, 'employee') END AS role,
-                CASE WHEN lower(u.email) = lower($2) THEN 'active' ELSE COALESCE(a.status, 'pending') END AS status
+                CASE WHEN lower(u.email) IN (lower($2), lower($3)) THEN 'admin' ELSE COALESCE(a.role, 'employee') END AS role,
+                CASE WHEN lower(u.email) IN (lower($2), lower($3)) THEN 'active' ELSE COALESCE(a.status, 'pending') END AS status
          FROM neon_auth."user" u
          LEFT JOIN public.site_user_access a ON a.user_id = u.id
          WHERE u.id = $1 AND u."emailVerified" = TRUE`,
-        [payload.sub, ADMIN_EMAIL]
+        [payload.sub, ADMIN_EMAIL, LEGACY_ADMIN_EMAIL]
       );
       const user = result.rows[0];
       if (!user) return { denied: "USER_NOT_FOUND_OR_EMAIL_UNVERIFIED" };
@@ -769,10 +771,10 @@ async function handleAdmin(request, env, url, origin) {
     const targetId = deleteUserMatch[1];
     if (targetId === admin.id) return json({ error: "CANNOT_DELETE_SELF", message: "Vous ne pouvez pas supprimer votre propre compte." }, 403, origin);
     const target = await withDatabase(env, db => db.query(
-      `SELECT u.id, u.email, COALESCE(a.role, CASE WHEN lower(u.email)=lower($2) THEN 'admin' ELSE 'employee' END) AS role FROM neon_auth."user" u LEFT JOIN public.site_user_access a ON a.user_id=u.id WHERE u.id=$1 LIMIT 1`, [targetId, ADMIN_EMAIL]
+      `SELECT u.id, u.email, COALESCE(a.role, CASE WHEN lower(u.email) IN (lower($2), lower($3)) THEN 'admin' ELSE 'employee' END) AS role FROM neon_auth."user" u LEFT JOIN public.site_user_access a ON a.user_id=u.id WHERE u.id=$1 LIMIT 1`, [targetId, ADMIN_EMAIL, LEGACY_ADMIN_EMAIL]
     ));
     if (!target.rows.length) return json({ error: "USER_NOT_FOUND" }, 404, origin);
-    if (isAdminDelegate && (String(target.rows[0].email || "").toLowerCase() === ADMIN_EMAIL.toLowerCase() || ["admin", "admin_delegate"].includes(target.rows[0].role))) return json({ error: "PRIVILEGED_ACCOUNT_PROTECTED" }, 403, origin);
+    if (isAdminDelegate && (isProtectedAdminEmail(target.rows[0].email) || ["admin", "admin_delegate"].includes(target.rows[0].role))) return json({ error: "PRIVILEGED_ACCOUNT_PROTECTED" }, 403, origin);
     if (String(target.rows[0].email || "").toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
       return json({ error: "PROTECTED_ACCOUNT", message: "Le compte administrateur principal est protégé." }, 403, origin);
     }
@@ -798,11 +800,11 @@ async function handleAdmin(request, env, url, origin) {
   if (url.pathname === "/api/admin/users" && request.method === "GET") {
     const r = await withDatabase(env, db => db.query(
       `SELECT u.id, u.name, u.email, u."emailVerified" AS email_verified, u."createdAt" AS created_at,
-              COALESCE(a.role, CASE WHEN lower(u.email) = lower($1) THEN 'admin' ELSE 'employee' END) AS role,
-              COALESCE(a.status, CASE WHEN lower(u.email) = lower($1) THEN 'active' ELSE 'pending' END) AS status
+              COALESCE(a.role, CASE WHEN lower(u.email) IN (lower($1), lower($2)) THEN 'admin' ELSE 'employee' END) AS role,
+              COALESCE(a.status, CASE WHEN lower(u.email) IN (lower($1), lower($2)) THEN 'active' ELSE 'pending' END) AS status
        FROM neon_auth."user" u LEFT JOIN public.site_user_access a ON a.user_id = u.id
-       WHERE ($2::boolean OR lower(u.email) <> lower($1))
-       ORDER BY u."createdAt" DESC LIMIT 500`, [ADMIN_EMAIL, !isAdminDelegate]
+       WHERE ($3::boolean OR lower(u.email) NOT IN (lower($1), lower($2)))
+       ORDER BY u."createdAt" DESC LIMIT 500`, [ADMIN_EMAIL, LEGACY_ADMIN_EMAIL, !isAdminDelegate]
     ));
     return json({ users: r.rows, canAssignDelegate: isSuperAdmin }, 200, origin);
   }
@@ -817,7 +819,7 @@ async function handleAdmin(request, env, url, origin) {
         `SELECT u.id, u.email, u.name, COALESCE(a.status, 'pending') AS previous_status,
                 COALESCE(a.role, CASE WHEN lower(u.email)=lower($2) THEN 'admin' ELSE 'employee' END) AS previous_role
          FROM neon_auth."user" u LEFT JOIN public.site_user_access a ON a.user_id = u.id
-         WHERE u.id = $1`, [userId, ADMIN_EMAIL]
+         WHERE u.id = $1`, [userId, ADMIN_EMAIL, LEGACY_ADMIN_EMAIL]
       );
       if (!target.rows[0]) return { missing: true };
       if (target.rows[0].email.toLowerCase() === ADMIN_EMAIL.toLowerCase() && (role !== "admin" || status !== "active")) return { protected: true };
@@ -1058,10 +1060,10 @@ async function handleAdmin(request, env, url, origin) {
          FROM neon_auth."user" u
          LEFT JOIN public.site_user_access a ON a.user_id=u.id
          WHERE u."emailVerified"=TRUE
-           AND (lower(u.email)=lower($2) OR a.status='active')
+           AND (lower(u.email) IN (lower($2), lower($3)) OR a.status='active')
            AND u.id<>$1
          ORDER BY lower(COALESCE(NULLIF(u.name,''),u.email))`,
-        [admin.id, ADMIN_EMAIL]
+        [admin.id, ADMIN_EMAIL, LEGACY_ADMIN_EMAIL]
       );
       let messages = [];
       if (withId) {
@@ -1095,7 +1097,7 @@ async function handleAdmin(request, env, url, origin) {
          LEFT JOIN public.site_user_access a ON a.user_id=u.id
          WHERE u.id=$1 AND u."emailVerified"=TRUE
            AND (lower(u.email)=lower($2) OR a.status='active') LIMIT 1`,
-        [recipientId, ADMIN_EMAIL]
+        [recipientId, ADMIN_EMAIL, LEGACY_ADMIN_EMAIL]
       );
       if (!recipient.rows.length) return null;
       const inserted = await db.query(
