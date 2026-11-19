@@ -620,8 +620,9 @@ async function handleAdmin(request, env, url, origin) {
     return json({ previewOnly: true, sender: { name: "FO Free Distribution", email: "no-reply@focom-iliad.fr" }, replyTo: { email: "contact@focom-iliad.fr" }, ...email }, 200, origin);
   }
   const isEditor = admin.role === "editor";
-  const editorAllowed = url.pathname === "/api/admin/articles" || url.pathname === "/api/admin/overview" || /^\/api\/admin\/articles\/\d+$/.test(url.pathname);
-  if (admin.role === "employee" || (isEditor && !editorAllowed)) return json({ error: "INSUFFICIENT_PERMISSIONS" }, 403, origin);
+  const messagingAllowed = url.pathname === "/api/admin/private-messages" || /^\/api\/admin\/private-messages\/[0-9a-f-]{36}\/read$/i.test(url.pathname);
+  const editorAllowed = url.pathname === "/api/admin/articles" || url.pathname === "/api/admin/overview" || messagingAllowed || /^\/api\/admin\/articles\/\d+$/.test(url.pathname);
+  if ((admin.role === "employee" && !messagingAllowed) || (isEditor && !editorAllowed)) return json({ error: "INSUFFICIENT_PERMISSIONS" }, 403, origin);
 
 
   if (url.pathname === "/api/admin/users" && request.method === "POST") {
@@ -1045,7 +1046,7 @@ async function handleAdmin(request, env, url, origin) {
         (SELECT COUNT(*)::int FROM public.contact_messages WHERE status='in_progress') AS messages_in_progress,
         (SELECT COUNT(*)::int FROM public.contact_messages WHERE status='resolved') AS messages_resolved`
     ));
-    return json({ overview: result.rows[0], user: { role: admin.role } }, 200, origin);
+    return json({ overview: result.rows[0], user: { id: admin.id, name: admin.name, email: admin.email, role: admin.role } }, 200, origin);
   }
 
   if (url.pathname === "/api/admin/messages" && request.method === "GET") {
