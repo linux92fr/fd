@@ -1151,7 +1151,7 @@ async function handleAdmin(request, env, url, origin) {
         "SELECT COUNT(*)::int AS count FROM public.private_messages WHERE recipient_id=$1 AND read_at IS NULL",
         [admin.id]
       );
-      if (summaryOnly) return { unreadCount: unread.rows[0].count, user: { id: admin.id, name: admin.name, email: admin.email }, contacts: [], messages: [] };
+      if (summaryOnly) return { unreadCount: unread.rows[0].count, user: { id: admin.id, name: admin.name, email: admin.email, role: admin.role }, contacts: [], messages: [] };
       const contacts = await db.query(
         `SELECT u.id, u.name, u.email,
                 CASE WHEN lower(u.email) IN (lower($2), lower($3)) THEN 'admin' ELSE COALESCE(a.role,'employee') END AS role
