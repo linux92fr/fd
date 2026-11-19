@@ -695,7 +695,7 @@ if (surveyForm) {
     setText(document.querySelector("#droits .rights-contact strong"),rights.contactTitle);setText(document.querySelector("#droits .rights-contact p"),rights.contactText);
    }
    const order=content.section_order?.order,mainNode=document.querySelector("main");
-   if(mainNode&&Array.isArray(order)){const selectors={news:"#actualites",newsletter:"#newsletter",claims:"#revendications",rights:"#droits",survey:"#questionnaires",contact:"#contact"};order.forEach(key=>{const node=mainNode.querySelector(":scope > "+selectors[key]);if(node)mainNode.append(node)})}
+   if(mainNode&&Array.isArray(order)){const selectors={intro:".intro",news:"#actualites",claims:"#revendications",rights:"#droits",survey:"#questionnaires",contact:"#contact"};order.forEach(key=>{const node=mainNode.querySelector(":scope > "+selectors[key]);if(node)mainNode.append(node)})}
   }
  }catch(error){console.warn("Managed content not loaded:",error)}
 })();

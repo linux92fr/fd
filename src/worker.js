@@ -31,7 +31,7 @@ const SURVEY_ACCESS_JWKS = createRemoteJWKSet(new URL(SURVEY_ACCESS_ISSUER + "/c
 const SURVEY_ADMIN_EMAILS = new Set([ADMIN_EMAIL, LEGACY_ADMIN_EMAIL]);
 
 const SITE_CONTENT_KEYS = new Set(["claims", "rights", "section_order"]);
-const SITE_SECTION_ORDER = ["news", "newsletter", "claims", "rights", "survey", "contact"];
+const SITE_SECTION_ORDER = ["intro", "news", "claims", "rights", "survey", "contact"];
 const SURVEY_CONFIG_DEFAULT = {
   conditions:"Comment évaluez-vous globalement vos conditions de travail ?",
   priorities:"Quels sujets devraient être prioritaires ?",
@@ -752,13 +752,11 @@ async function handleAdmin(request, env, url, origin) {
   const canAdminister = isAdmin || isAdminDelegate;
 
   if(url.pathname==="/api/admin/site-content"&&request.method==="GET"){
-    if(!["admin","admin_delegate","editor"].includes(admin.role))return json({error:"INSUFFICIENT_PERMISSIONS"},403,origin);
     const rows=await env.SURVEYS_DB.prepare("SELECT content_key,content_json,status,updated_at FROM site_content WHERE content_key IN ('claims:draft','rights:draft','section_order:draft','claims:published','rights:published','section_order:published')").all();
     const content={};for(const row of rows.results||[]){const [key,state]=row.content_key.split(":");try{content[key]||={};content[key][state]=JSON.parse(row.content_json)}catch{}}
     return json({content,permissions:{canPublish:canAdminister}},200,origin);
   }
   if(url.pathname==="/api/admin/site-content"&&request.method==="POST"){
-    if(!["admin","admin_delegate","editor"].includes(admin.role))return json({error:"INSUFFICIENT_PERMISSIONS"},403,origin);
     let body;try{body=await request.json()}catch{return json({error:"INVALID_JSON"},400,origin)}
     const key=String(body.key||"");if(!validateSiteContent(key,body.content))return json({error:"INVALID_SITE_CONTENT"},400,origin);
     if(key==="section_order"&&!canAdminister)return json({error:"ADMIN_REQUIRED"},403,origin);

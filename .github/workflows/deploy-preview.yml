@@ -7,6 +7,7 @@ on:
       - redesign/homepage-compact
       - redesign/admin-modern-workspace
       - feat/content-questionnaire-editor
+      - feat/admin-header-shortcut
     paths:
       - "src/**"
       - "public/**"
