@@ -6,6 +6,7 @@ on:
       - port-preview-features-production
     paths:
       - ".github/workflows/dependency-maintenance.yml"
+      - "package.json"
   workflow_dispatch:
 
 permissions:
