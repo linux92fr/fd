@@ -34,7 +34,7 @@ async function installPublicAccountHeader() {
     tools.innerHTML = `
       <span class="public-session-chip" title="Session connectée">
         <span class="public-session-dot" aria-hidden="true"></span>
-        <span class="public-session-copy"><strong>${escapeHtml(user.name || user.email)}</strong><small>${roleLabels[user.role]}</small></span>
+        <span class="public-session-copy"><strong>${escapeHtml(user.name || 'Mon compte')}</strong></span>
       </span>
       <button class="public-notification-placeholder" type="button" disabled aria-label="Notifications — bientôt disponible" title="Notifications et messagerie interne : bientôt disponibles">
         <span aria-hidden="true">♧</span>
