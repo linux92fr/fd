@@ -677,4 +677,36 @@ if (surveyForm) {
 
 
 
+(async()=>{
+ const setText=(node,value)=>{if(node&&typeof value==="string")node.textContent=value};
+ const el=(tag,cls,value)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(value!==undefined)n.textContent=value;return n};
+ try{
+  const response=await fetch("/api/site-content",{headers:{Accept:"application/json"}});
+  if(response.ok){
+   const {content={}}=await response.json(),claims=content.claims,rights=content.rights;
+   if(claims&&Array.isArray(claims.items)){
+    setText(document.querySelector('#revendications [data-homepage="claims_eyebrow"]'),claims.eyebrow);setText(document.querySelector('#revendications [data-homepage="claims_title"]'),claims.title);setText(document.querySelector('#revendications .section-lead'),claims.lead);
+    const grid=document.querySelector("#revendications .claims-grid");if(grid){grid.replaceChildren();claims.items.forEach(item=>{const card=el("article","claim-card");card.append(el("span","claim-icon",item.icon),el("span","card-number",item.number),el("h3","",item.title));const ul=el("ul");(item.bullets||[]).forEach(b=>ul.append(el("li","",b)));card.append(ul);grid.append(card)})}
+    setText(document.querySelector("#revendications .claims-commitment h3"),claims.commitmentTitle);setText(document.querySelector("#revendications .claims-commitment p"),claims.commitmentText);setText(document.querySelector("#revendications .disclaimer"),claims.disclaimer);setText(document.querySelector("#revendications summary span:first-child"),"Consulter les "+claims.items.length+" axes de nos revendications");
+   }
+   if(rights&&Array.isArray(rights.topics)){
+    setText(document.querySelector('#droits [data-homepage="rights_eyebrow"]'),rights.eyebrow);setText(document.querySelector('#droits [data-homepage="rights_title"]'),rights.title);setText(document.querySelector("#droits .rights-lead"),rights.lead);
+    const grid=document.querySelector("#droits .rights-topics");if(grid){grid.replaceChildren();rights.topics.forEach(item=>{const card=el("article","rights-topic");card.append(el("span","",item.icon));const copy=el("div");copy.append(el("small","",item.number),el("h3","",item.title));card.append(copy);grid.append(card)})}
+    setText(document.querySelector("#droits .rights-contact strong"),rights.contactTitle);setText(document.querySelector("#droits .rights-contact p"),rights.contactText);
+   }
+   const order=content.section_order?.order,mainNode=document.querySelector("main");
+   if(mainNode&&Array.isArray(order)){const selectors={news:"#actualites",newsletter:"#newsletter",claims:"#revendications",rights:"#droits",survey:"#questionnaires",contact:"#contact"};order.forEach(key=>{const node=mainNode.querySelector(":scope > "+selectors[key]);if(node)mainNode.append(node)})}
+  }
+ }catch(error){console.warn("Managed content not loaded:",error)}
+})();
+(async()=>{
+ try{
+  const response=await fetch("/api/survey/config",{headers:{Accept:"application/json"}});if(!response.ok)return;
+  const {config}=await response.json(),form=document.querySelector("#fd-survey-form");if(!config||!form)return;
+  const fields=[["conditions",0],["priorities",1],["recognition",2],["comment",3]];
+  fields.forEach(([key,index])=>{const legend=form.querySelectorAll("fieldset")[index]?.querySelector("legend");if(!legend||typeof config[key]!=="string")return;const required=legend.querySelector("b");legend.textContent=String(index+1).padStart(2,"0")+" "+config[key]+" ";if(required)legend.append(required)});
+  const box=form.querySelector(".priority-options");if(box&&Array.isArray(config.priorityOptions)){const labels=new Map([...box.querySelectorAll("label")].map(label=>[label.querySelector("input")?.value,label]));config.priorityOptions.forEach(option=>{const label=labels.get(option.value);if(!label)return;const span=label.querySelector("span");if(span)span.textContent=option.label;box.append(label)})}
+ }catch(error){console.warn("Survey configuration not loaded:",error)}
+})();
+
 }
