@@ -12,6 +12,11 @@ async function installPublicAccountHeader() {
   const header = document.querySelector('.site-header');
   if (!header || header.querySelector('.public-account-tools')) return;
 
+  const tools = document.createElement('div');
+  tools.className = 'public-account-tools';
+  tools.innerHTML = '<a class="public-login-link" href="/admin">Connexion</a>';
+  header.append(tools);
+
   try {
     const result = await auth.token();
     const jwt = result?.data?.token;
@@ -26,8 +31,6 @@ async function installPublicAccountHeader() {
     const user = data.user || {};
     if (!user.email || !roleLabels[user.role]) return;
 
-    const tools = document.createElement('div');
-    tools.className = 'public-account-tools';
     tools.innerHTML = `
       <span class="public-session-chip" title="Session connectée">
         <span class="public-session-dot" aria-hidden="true"></span>
@@ -37,9 +40,8 @@ async function installPublicAccountHeader() {
         <span aria-hidden="true">♧</span>
       </button>
     `;
-    header.append(tools);
   } catch {
-    // Public pages remain fully usable when no authenticated admin session exists.
+    // Keep the public connection link visible if the session cannot be validated.
   }
 }
 
