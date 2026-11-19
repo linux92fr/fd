@@ -1,4 +1,5 @@
 import './style.css';
+import './public-session.js';
 
 function renderArticleMarkup(source) {
   const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({
