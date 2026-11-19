@@ -45,7 +45,7 @@ function renderAccountTools(tools, unreadCount) {
       <span class="public-session-copy"><strong>${escapeHtml(currentUser.name || 'Mon compte')}</strong></span>
     </span>
     <button class="public-notification-button" type="button" aria-label="Ouvrir la messagerie" title="Messagerie interne">
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></path></svg>
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>
       <span class="public-notification-count" ${unreadCount ? '' : 'hidden'}>${unreadCount}</span>
     </button>
     <button class="public-logout-button" type="button">Déconnexion</button>
