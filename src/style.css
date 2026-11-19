@@ -845,3 +845,30 @@ body.newsletter-popup-open{overflow:hidden}
 .private-thread{max-height:420px;min-height:220px;margin:16px 0;border:1px solid #e5e7eb;border-radius:9px}
 .private-message{max-width:85%}
 @media(max-width:600px){.public-messaging-panel{right:12px;bottom:12px;height:min(620px,calc(100vh - 24px));width:calc(100vw - 24px)}}
+
+
+/* Public account controls: restrained notification and visible sign-out */
+.public-notification-button{
+  width:34px;height:34px;border:1px solid #e3e5e9;border-radius:9px;
+  background:transparent;color:#596273;font-size:0;transition:background .18s ease,border-color .18s ease,color .18s ease;
+}
+.public-notification-button:hover{background:#f7f7f9;border-color:#cbd0d8;color:#343b48}
+.public-notification-button svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round}
+.public-notification-count{top:-4px;right:-5px;min-width:15px;height:15px;padding:0 3px;background:#b42336;font-size:9px;font-weight:700}
+.public-logout-button{
+  min-height:34px;padding:0 11px;border:1px solid #e3e5e9;border-radius:7px;
+  background:transparent;color:#596273;font:600 12px inherit;cursor:pointer;white-space:nowrap;
+  transition:background .18s ease,border-color .18s ease,color .18s ease;
+}
+.public-logout-button:hover{background:#f7f7f9;border-color:#cbd0d8;color:#202938}
+.public-logout-button:disabled{opacity:.55;cursor:wait}
+.private-message-delete{
+  display:block;margin:7px 0 0 auto;padding:2px 0;border:0;background:transparent;
+  color:#8b909b;font:600 10px inherit;cursor:pointer;text-decoration:underline;text-underline-offset:2px;
+}
+.private-message-delete:hover{color:#b42336}
+.private-message-delete:disabled{opacity:.5;cursor:wait}
+@media(max-width:760px){
+  .public-account-tools{gap:7px}
+  .public-logout-button{min-height:32px;padding:0 9px}
+}
