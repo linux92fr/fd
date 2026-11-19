@@ -1,0 +1,35 @@
+name: Validate admin migration (no deployment)
+
+on:
+  push:
+    branches:
+      - migration-admin-production
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "src/admin.js"
+      - "src/worker.js"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/validate-admin-migration.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install
+      - name: Build application
+        run: npm run build
+      - name: Check Worker syntax
+        run: node --check src/worker.js

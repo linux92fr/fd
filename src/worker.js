@@ -8,12 +8,15 @@ const allowedOrigins = new Set([
 const AUTH_BASE_URL = "https://ep-sweet-resonance-b9ov2yaa.neonauth.c-7.eu-central-1.aws.neon.tech/neondb/auth";
 const AUTH_JWKS = createRemoteJWKSet(new URL(AUTH_BASE_URL + "/.well-known/jwks.json"));
 const AUTH_ISSUER = new URL(AUTH_BASE_URL).origin;
-const ADMIN_EMAIL = "free-distri@focom-iliad.fr";
+const ADMIN_EMAIL = "contact@focom-iliad.fr";
+const LEGACY_ADMIN_EMAIL = "free-distri@focom-iliad.fr";
+const ADMIN_EMAILS = [ADMIN_EMAIL, LEGACY_ADMIN_EMAIL];
+const isProtectedAdminEmail = email => ADMIN_EMAILS.includes(String(email || "").toLowerCase());
 const HOMEPAGE_DEFAULTS = {"hero_eyebrow":"FOCOM · Free Distribution","hero_title":"La voix des salariés\ndes boutiques Free.","hero_text":"Un espace d’information, de dialogue et d’action syndicale dédié aux équipes de Free Distribution.","hero_primary_label":"Nos revendications","hero_primary_url":"#revendications","hero_secondary_label":"Nous contacter","hero_secondary_url":"/contact","intro_eyebrow":"Notre engagement","intro_title":"À vos côtés, au quotidien.","intro_text":"La vente, le conseil et l’accompagnement des clients en boutique mobilisent des compétences et un engagement essentiels. FO Free Distribution porte la parole des salariés et défend leurs intérêts professionnels.","news_eyebrow":"Restez informés","news_title":"Actualités","news_note":"Les informations dédiées à Free Distribution","claims_eyebrow":"Élections professionnelles · FO Free Distribution","claims_title":"Nos revendications","claims_lead":"Notre ambition : obtenir des avancées concrètes sur les salaires, les commissions, les conditions de travail et la reconnaissance des équipes en boutique. Voici les engagements que FO souhaite porter avec vous.","rights_eyebrow":"Mieux connaître vos droits","rights_title":"Vos droits au travail","rights_lead":"Des repères pratiques pour comprendre vos droits et savoir vers qui vous tourner. Les contenus détaillés seront publiés prochainement.","survey_eyebrow":"Votre avis compte","survey_title":"Donnez votre avis en toute confidentialité.","survey_text":"Cette consultation permet de faire remonter les attentes et les priorités des salariés de Free Distribution. Vos réponses sont enregistrées sans nom ni adresse e-mail.","hero_image":"","intro_image":"","news_image":"","claims_image":"","rights_image":"","survey_image":""};
 const SURVEY_ACCESS_ISSUER = "https://linux92fr.cloudflareaccess.com";
 const SURVEY_ACCESS_AUDIENCE = "e58983dc65cd10dd66fdb66e69e85c1e099f2427f9de1e8fb03b84b961bb22ed";
 const SURVEY_ACCESS_JWKS = createRemoteJWKSet(new URL(SURVEY_ACCESS_ISSUER + "/cdn-cgi/access/certs"));
-const SURVEY_ADMIN_EMAIL = "free-distri@focom-iliad.fr";
+const SURVEY_ADMIN_EMAILS = new Set(ADMIN_EMAILS);
 
 function json(data, status = 200, origin = "") {
   const headers = {
@@ -48,7 +51,7 @@ async function requireSurveyAdmin(request) {
     const { payload } = await jwtVerify(assertion, SURVEY_ACCESS_JWKS, {
       issuer: SURVEY_ACCESS_ISSUER, audience: SURVEY_ACCESS_AUDIENCE,
     });
-    return typeof payload.email === "string" && payload.email.toLowerCase() === SURVEY_ADMIN_EMAIL;
+    return typeof payload.email === "string" && SURVEY_ADMIN_EMAILS.has(payload.email.toLowerCase());
   } catch (error) {
     console.warn("Survey Access JWT rejected:", error?.code || error?.name || "unknown");
     return false;
@@ -289,8 +292,8 @@ async function requireAdmin(request, env) {
   try {
     return await withDatabase(env, async (db) => {
       const result = await db.query(
-        'SELECT id, email, role FROM neon_auth."user" WHERE id = $1 AND email = $2 AND "emailVerified" = TRUE',
-        [payload.sub, ADMIN_EMAIL]
+        'SELECT id, email, role FROM neon_auth."user" WHERE id = $1 AND lower(email) IN (lower($2), lower($3)) AND "emailVerified" = TRUE',
+        [payload.sub, ADMIN_EMAIL, LEGACY_ADMIN_EMAIL]
       );
       if (!result.rows[0]) return { denied: "USER_NOT_FOUND_OR_EMAIL_UNVERIFIED" };
       if (result.rows[0].role !== "admin") return { denied: "USER_ROLE_NOT_ADMIN" };
