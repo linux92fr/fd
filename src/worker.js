@@ -718,7 +718,7 @@ async function handleAdmin(request, env, url, origin) {
   const isEditor = admin.role === "editor";
   const messagingAllowed = url.pathname === "/api/admin/private-messages" || /^\/api\/admin\/private-messages\/[0-9a-f-]{36}(?:\/read)?$/i.test(url.pathname);
   const editorAllowed = url.pathname === "/api/admin/articles" || url.pathname === "/api/admin/overview" || messagingAllowed || /^\/api\/admin\/articles\/\d+$/.test(url.pathname);
-  if ((admin.role === "employee" && !messagingAllowed) || (isEditor && !editorAllowed)) return json({ error: "INSUFFICIENT_PERMISSIONS" }, 403, origin);
+  if ((admin.role === "employee" && !messagingAllowed && url.pathname !== "/api/admin/overview") || (isEditor && !editorAllowed)) return json({ error: "INSUFFICIENT_PERMISSIONS" }, 403, origin);
 
 
   if (url.pathname === "/api/admin/users" && request.method === "POST") {
@@ -1155,10 +1155,11 @@ async function handleAdmin(request, env, url, origin) {
         (SELECT COUNT(*)::int FROM public.articles) AS articles_total,
         (SELECT COUNT(*)::int FROM public.articles WHERE status='published') AS articles_published,
         (SELECT COUNT(*)::int FROM public.articles WHERE status='draft') AS articles_draft,
-        (SELECT COUNT(*)::int FROM public.contact_messages) AS messages_total,
-        (SELECT COUNT(*)::int FROM public.contact_messages WHERE status='new') AS messages_new,
-        (SELECT COUNT(*)::int FROM public.contact_messages WHERE status='in_progress') AS messages_in_progress,
-        (SELECT COUNT(*)::int FROM public.contact_messages WHERE status='resolved') AS messages_resolved`
+        CASE WHEN $1::boolean THEN (SELECT COUNT(*)::int FROM public.contact_messages) ELSE 0 END AS messages_total,
+        CASE WHEN $1::boolean THEN (SELECT COUNT(*)::int FROM public.contact_messages WHERE status='new') ELSE 0 END AS messages_new,
+        CASE WHEN $1::boolean THEN (SELECT COUNT(*)::int FROM public.contact_messages WHERE status='in_progress') ELSE 0 END AS messages_in_progress,
+        CASE WHEN $1::boolean THEN (SELECT COUNT(*)::int FROM public.contact_messages WHERE status='resolved') ELSE 0 END AS messages_resolved`,
+      [admin.role === "admin" || admin.role === "admin_delegate"]
     ));
     return json({ overview: result.rows[0], user: { id: admin.id, name: admin.name, email: admin.email, role: admin.role } }, 200, origin);
   }
