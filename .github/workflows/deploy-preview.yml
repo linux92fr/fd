@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - port-preview-features-production
+      - redesign/homepage-compact
     paths:
       - "src/**"
       - "public/**"
@@ -28,7 +29,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: port-preview-features-production
+          ref: ${{ github.ref }}
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:

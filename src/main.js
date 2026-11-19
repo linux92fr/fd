@@ -246,10 +246,6 @@ document.querySelector('#app').innerHTML = `
       </div>
     </section>
 
-    <section class="intro section">
-      <div class="intro-visual" aria-hidden="true"><div class="intro-visual-symbol">FO</div><span>FREE DISTRIBUTION</span><small>ÉCOUTER · INFORMER · DÉFENDRE</small></div>
-      <div class="intro-copy"><span class="eyebrow" data-homepage="intro_eyebrow">Notre engagement</span><h2 data-homepage="intro_title">À vos côtés, <span>au quotidien.</span></h2><p data-homepage="intro_text">La vente, le conseil et l’accompagnement des clients en boutique mobilisent des compétences et un engagement essentiels. FO Free Distribution porte la parole des salariés et défend leurs intérêts professionnels.</p><div class="intro-pillars"><span><b>01</b> Être à votre écoute</span><span><b>02</b> Défendre vos droits</span><span><b>03</b> Obtenir des avancées</span></div></div>
-    </section>
 
     <section class="section light-section" id="actualites">
       <div class="section-heading"><div><span class="eyebrow" data-homepage="news_eyebrow">Restez informés</span><h2 data-homepage="news_title">Actualités</h2></div><span class="section-note" data-homepage="news_note">Les informations dédiées à Free Distribution</span></div>
@@ -298,6 +294,8 @@ document.querySelector('#app').innerHTML = `
         <span class="section-note" data-homepage="claims_note">Un programme construit autour de vos attentes</span>
       </div>
       <p class="section-lead" data-homepage="claims_lead">Notre ambition : obtenir des avancées concrètes sur les salaires, les commissions, les conditions de travail et la reconnaissance des équipes en boutique. Voici les engagements que FO souhaite porter avec vous.</p>
+      <details class="compact-disclosure">
+        <summary><span>Consulter les 7 axes de nos revendications</span><span class="disclosure-action">Voir le détail <b aria-hidden="true">＋</b></span></summary>
       <div class="claims-grid">
         <article class="claim-card"><span class="claim-icon" aria-hidden="true">€</span><span class="card-number">01 · POUVOIR D'ACHAT</span><h3>Rémunération juste</h3><ul><li>Augmentations générales et revalorisation des salaires fixes.</li><li>Reconnaissance de l'ancienneté et de l'expérience.</li><li>Primes et commissions transparentes, compréhensibles et vérifiables.</li><li>Une rémunération qui ne repose pas uniquement sur des objectifs commerciaux.</li></ul></article>
         <article class="claim-card"><span class="claim-icon" aria-hidden="true">↗</span><span class="card-number">02 · COMMISSIONS</span><h3>Des objectifs atteignables</h3><ul><li>Des objectifs adaptés à la fréquentation et à la réalité de chaque boutique.</li><li>Des règles de calcul des commissions claires et stables.</li><li>La prise en compte du travail collectif et des missions réellement effectuées.</li><li>La fin des changements imprévisibles en cours de période.</li></ul></article>
@@ -313,6 +311,7 @@ document.querySelector('#app').innerHTML = `
         <a class="button button-red" href="/contact">Échanger avec l'équipe FO <span>→</span></a>
       </div>
       <p class="disclaimer">Ces propositions constituent la base du programme revendicatif présenté aux salariés. Les mesures chiffrées et les priorités définitives seront précisées avec les équipes et les candidats FO.</p>
+      </details>
     </section>
 
     <section class="section rights-section" id="droits">
@@ -337,6 +336,8 @@ document.querySelector('#app').innerHTML = `
         <p data-homepage="survey_text">Cette consultation permet de faire remonter les attentes et les priorités des salariés de Free Distribution. Vos réponses sont enregistrées sans nom ni adresse e-mail.</p>
         <div class="survey-privacy"><strong>Questionnaire anonyme</strong><span>Aucun nom ni e-mail n'est demandé. Évitez toutefois de mentionner des personnes ou des informations permettant de vous identifier dans votre commentaire.</span></div>
       </div>
+      <details class="compact-disclosure survey-disclosure">
+        <summary><span>Accéder au questionnaire anonyme</span><span class="disclosure-action">Participer <b aria-hidden="true">＋</b></span></summary>
       <form id="fd-survey-form" class="survey-form">
         <fieldset class="survey-question">
           <legend><span>01</span> Comment évaluez-vous globalement vos conditions de travail ? <b>*</b></legend>
@@ -387,6 +388,7 @@ document.querySelector('#app').innerHTML = `
         </div>
         <p id="survey-message" class="survey-message" role="status" aria-live="polite"></p>
       </form>
+      </details>
     </section>
 
     <section class="contact-section" id="contact">
@@ -548,6 +550,19 @@ async function loadArticles() {
         <span class="article-card-more">Lire l’article →</span>
       </a>`;
     }).join('')}</div>`;
+    if (articles.length > 3) {
+      const grid = articlesList.querySelector('.article-grid');
+      const more = document.createElement('button');
+      more.type = 'button';
+      more.className = 'button button-outline article-show-more';
+      more.textContent = 'Afficher toutes les actualités';
+      more.setAttribute('aria-expanded', 'false');
+      more.addEventListener('click', () => {
+        grid.classList.add('is-expanded');
+        more.remove();
+      });
+      articlesList.append(more);
+    }
   } catch (error) {
     console.error('Chargement des actualités impossible:', error);
     if (articlesList) articlesList.innerHTML = `<div class="empty-state"><h3>Actualités momentanément indisponibles</h3><p>Merci de réessayer dans quelques instants.</p></div>`;
