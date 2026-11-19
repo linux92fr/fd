@@ -675,7 +675,7 @@ async function handleAdmin(request, env, url, origin) {
 
   const resendWelcomeMatch = url.pathname.match(/^\/api\/admin\/users\/([0-9a-f-]{36})\/send-welcome$/i);
   if (resendWelcomeMatch && request.method === "POST") {
-    if (!isAdmin) return json({ error: "SUPER_ADMIN_REQUIRED" }, 403, origin);
+    if (!canAdminister) return json({ error: "ADMIN_REQUIRED" }, 403, origin);
     const result = await withDatabase(env, db => db.query(
       'SELECT u.email, u.name FROM neon_auth."user" u JOIN public.site_user_access a ON a.user_id=u.id WHERE u.id=$1 AND a.status=\'pending\'',
       [resendWelcomeMatch[1]]
