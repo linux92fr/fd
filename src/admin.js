@@ -188,50 +188,49 @@ function initialPasswordVerify(email, message = '') {
 }
 
 function passwordRequest(initialEmail = '', message = '') {
-  frame('<section class="admin-panel admin-login"><span class="eyebrow">Récupération du compte</span><h1>Réinitialiser le mot de passe</h1><p>Saisissez l’adresse e-mail du compte concerné. Vous recevrez un lien pour choisir un nouveau mot de passe.</p><form id="password-request"><label>Adresse e-mail<input name="email" type="email" value="' + esc(initialEmail) + '" required autocomplete="email" placeholder="vous@exemple.fr"></label><button class="button button-red">Envoyer le lien</button><p class="admin-message" role="status">' + esc(message) + '</p></form><button type="button" id="back-login" class="text-button">← Retour à la connexion</button></section>');
+  frame('<section class="admin-panel admin-login"><span class="eyebrow">Récupération du compte</span><h1>Réinitialiser le mot de passe</h1><p>Saisissez l’adresse e-mail du compte concerné. Vous recevrez un code de vérification à usage unique pour choisir un nouveau mot de passe.</p><form id="password-request"><label>Adresse e-mail<input name="email" type="email" value="' + esc(initialEmail) + '" required autocomplete="email" placeholder="vous@exemple.fr"></label><button class="button button-red">Recevoir un code</button><p class="admin-message" role="status">' + esc(message) + '</p></form><button type="button" id="back-login" class="text-button">← Retour à la connexion</button></section>');
   root.querySelector('#back-login').onclick = () => login();
   root.querySelector('#password-request').addEventListener('submit', async e => {
     e.preventDefault();
-    const button = e.currentTarget.querySelector('button[type="submit"], button:not([type])');
+    const form = e.currentTarget, button = form.querySelector('button');
+    const email = new FormData(form).get('email').trim().toLowerCase();
     button.disabled = true;
     try {
-      const email = new FormData(e.currentTarget).get('email');
-      const result = await auth.requestPasswordReset({ email, redirectTo: location.origin + '/admin?reset-password=1' });
-      if (result?.error) throw new Error(result.error.message || 'Envoi impossible.');
-      passwordRequest(email, 'Si cette adresse correspond à un compte, un e-mail de réinitialisation vient d’être envoyé. Vérifiez aussi vos courriers indésirables.');
+      const result = await auth.forgetPassword.emailOtp({ email });
+      if (result?.error) throw new Error(result.error.message || 'Envoi du code impossible.');
+      passwordReset(email, 'Si cette adresse correspond à un compte, un code a été envoyé. Vérifiez votre boîte de réception et vos courriers indésirables.');
     } catch (err) {
-      passwordRequest(email, err.message || 'Impossible d’envoyer le lien. Réessayez.');
+      passwordRequest(email, err.message || 'Impossible d’envoyer le code. Réessayez plus tard.');
     }
   });
 }
-function passwordReset() {
-  const params = new URLSearchParams(location.search);
-  const resetToken = params.get('token');
-  const authError = params.get('error');
-  if (!resetToken) {
-    passwordRequest('', authError ? 'Le lien est invalide ou expiré. Vous pouvez demander un nouvel e-mail.' : 'Le lien de réinitialisation est incomplet.');
+function passwordReset(email = '', message = '') {
+  if (!email) {
+    passwordRequest('', message || 'Saisissez votre adresse e-mail pour recevoir un code de réinitialisation.');
     return;
   }
-  frame('<section class="admin-panel admin-login"><span class="eyebrow">Sécurisation du compte</span><h1>Choisir un nouveau mot de passe</h1><form id="password-reset"><label>Nouveau mot de passe<input name="password" type="password" minlength="12" required autocomplete="new-password"></label><button type="button" class="button button-outline-dark" data-generate-password>Générer un mot de passe</button><p class="admin-hint" data-password-strength>12 caractères minimum, avec majuscule, minuscule, chiffre et caractère spécial.</p><label>Confirmer le mot de passe<input name="confirm" type="password" minlength="12" required autocomplete="new-password"></label><button class="button button-red">Enregistrer le nouveau mot de passe</button><p class="admin-message" role="status"></p></form></section>');
+  frame('<section class="admin-panel admin-login"><span class="eyebrow">Récupération du compte</span><h1>Choisir un nouveau mot de passe</h1><p>Un code à usage unique a été envoyé à <strong>' + esc(email) + '</strong>. Saisissez-le puis choisissez votre nouveau mot de passe.</p><form id="password-reset"><label>Code reçu<input name="otp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" required></label><label>Nouveau mot de passe<input name="password" type="password" minlength="12" required autocomplete="new-password"></label><button type="button" class="button button-outline-dark" data-generate-password>Générer un mot de passe</button><p class="admin-hint" data-password-strength>12 caractères minimum, avec majuscule, minuscule, chiffre et caractère spécial.</p><label>Confirmer le mot de passe<input name="confirm" type="password" minlength="12" required autocomplete="new-password"></label><button class="button button-red">Enregistrer le nouveau mot de passe</button><p class="admin-message" role="status">' + esc(message) + '</p></form><button type="button" id="resend-reset-code" class="text-button">Renvoyer un code</button></section>');
   const resetForm = root.querySelector('#password-reset');
   attachPasswordTools(resetForm, resetForm.elements.password, resetForm.elements.confirm);
+  root.querySelector('#resend-reset-code').onclick = () => passwordRequest(email);
   resetForm.addEventListener('submit', async e => {
     e.preventDefault();
-    const form = e.currentTarget;
-    const values = new FormData(form);
-    const password = values.get('password');
-    const message = form.querySelector('.admin-message');
-    if (!passwordMeetsPolicy(password)) { message.textContent = 'Utilisez au moins 12 caractères avec une majuscule, une minuscule, un chiffre et un caractère spécial.'; return; }
-    if (password !== values.get('confirm')) { message.textContent = 'Les deux mots de passe ne correspondent pas.'; return; }
-    const button = form.querySelector('button');
-    button.disabled = true;
+    const form = e.currentTarget, values = new FormData(form);
+    const otp = String(values.get('otp') || '').trim();
+    const password = String(values.get('password') || '');
+    const messageNode = form.querySelector('.admin-message');
+    if (!passwordMeetsPolicy(password)) { messageNode.textContent = 'Utilisez au moins 12 caractères avec une majuscule, une minuscule, un chiffre et un caractère spécial.'; return; }
+    if (password !== values.get('confirm')) { messageNode.textContent = 'Les deux mots de passe ne correspondent pas.'; return; }
+    const button = form.querySelector('button[type="submit"], button:not([type])'); button.disabled = true;
     try {
-      const result = await auth.resetPassword({ newPassword: password, token: resetToken });
-      if (result?.error) throw new Error(result.error.message || 'Réinitialisation impossible.');
+      const checked = await auth.emailOtp.checkVerificationOtp({ email, otp, type: 'forget-password' });
+      if (checked?.error || !checked?.data?.success) throw new Error(checked?.error?.message || 'Code invalide ou expiré. Demandez-en un nouveau.');
+      const reset = await auth.emailOtp.resetPassword({ email, otp, password });
+      if (reset?.error) throw new Error(reset.error.message || 'Impossible d’enregistrer le mot de passe.');
       history.replaceState({}, '', '/admin');
       login('Mot de passe modifié. Vous pouvez maintenant vous connecter.');
     } catch (err) {
-      message.textContent = err.message || 'Le lien est invalide ou expiré. Demandez-en un nouveau.';
+      messageNode.textContent = err.message || 'Réinitialisation impossible. Réessayez.';
       button.disabled = false;
     }
   });
