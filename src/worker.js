@@ -496,7 +496,8 @@ async function handleNeonAuthWebhook(request, env) {
       method: "POST",
       headers: { "accept": "application/json", "api-key": env.BREVO_API_KEY, "content-type": "application/json" },
       body: JSON.stringify({
-        sender: { name: "FO Free Distribution", email: "contact@focom-iliad.fr" },
+        sender: { name: "FO Free Distribution", email: "no-reply@focom-iliad.fr" },
+        replyTo: { email: "contact@focom-iliad.fr" },
         to: [{ email: email.email }],
         subject: email.subject,
         htmlContent: email.html,
@@ -555,7 +556,8 @@ async function sendAccountEmailDetailed(env, recipient, name, type) {
       method: "POST",
       headers: { "accept": "application/json", "api-key": env.BREVO_API_KEY, "content-type": "application/json" },
       body: JSON.stringify({
-        sender: { name: "FO Free Distribution", email: "contact@focom-iliad.fr" },
+        sender: { name: "FO Free Distribution", email: "no-reply@focom-iliad.fr" },
+        replyTo: { email: "contact@focom-iliad.fr" },
         to: [{ email: recipient }],
         subject: email.subject,
         htmlContent: email.html,
@@ -581,7 +583,8 @@ async function sendAccountEmail(env, recipient, name, type) {
       method: "POST",
       headers: { "accept": "application/json", "api-key": env.BREVO_API_KEY, "content-type": "application/json" },
       body: JSON.stringify({
-        sender: { name: "FO Free Distribution", email: "contact@focom-iliad.fr" },
+        sender: { name: "FO Free Distribution", email: "no-reply@focom-iliad.fr" },
+        replyTo: { email: "contact@focom-iliad.fr" },
         to: [{ email: recipient }],
         subject: email.subject,
         htmlContent: email.html,
@@ -611,7 +614,8 @@ async function handleAdmin(request, env, url, origin) {
     const name = url.searchParams.get("name") || "";
     const email = renderAccountEmail(type, name);
     if (!email) return json({ error: "INVALID_EMAIL_TEMPLATE" }, 400, origin);
-    return json({ previewOnly: true, sender: { name: "FO Free Distribution", email: "contact@focom-iliad.fr" }, ...email }, 200, origin);
+    return json({ previewOnly: true, sender: { name: "FO Free Distribution", email: "no-reply@focom-iliad.fr" }, ...email }, 200, origin);
+        replyTo: { email: "contact@focom-iliad.fr" },
   }
   const isEditor = admin.role === "editor";
   const editorAllowed = url.pathname === "/api/admin/articles" || url.pathname === "/api/admin/overview" || /^\/api\/admin\/articles\/\d+$/.test(url.pathname);
