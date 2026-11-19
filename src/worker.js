@@ -70,6 +70,26 @@ async function requireSurveyAdmin(request) {
 }
 
 
+async function newsletterSignupRateLimit(request, env) {
+  const clientIp = request.headers.get("CF-Connecting-IP");
+  if (!clientIp) return { allowed: false, unavailable: true };
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(clientIp));
+  const ipHash = [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, "0")).join("");
+  return withDatabase(env, async db => {
+    const result = await db.query(
+      `INSERT INTO public.newsletter_signup_rate_limits(ip_hash,window_started_at,attempts)
+       VALUES($1,NOW(),1)
+       ON CONFLICT(ip_hash) DO UPDATE
+       SET attempts=CASE WHEN public.newsletter_signup_rate_limits.window_started_at < NOW()-INTERVAL '15 minutes' THEN 1 ELSE public.newsletter_signup_rate_limits.attempts+1 END,
+           window_started_at=CASE WHEN public.newsletter_signup_rate_limits.window_started_at < NOW()-INTERVAL '15 minutes' THEN NOW() ELSE public.newsletter_signup_rate_limits.window_started_at END
+       RETURNING attempts`,
+      [ipHash]
+    );
+    await db.query("DELETE FROM public.newsletter_signup_rate_limits WHERE window_started_at < NOW()-INTERVAL '1 day'");
+    return { allowed: Number(result.rows[0]?.attempts || 0) <= 5 };
+  });
+}
+
 async function handleNewsletterSubscribe(request, env) {
   const origin = request.headers.get("Origin") || "";
   if (!allowedOrigins.has(origin)) return json({ error: "INVALID_ORIGIN" }, 403, origin);
@@ -81,8 +101,16 @@ async function handleNewsletterSubscribe(request, env) {
   if (typeof body.website === "string" && body.website.trim()) {
     return json({ ok: true, message: "Votre demande d’inscription a bien été prise en compte." }, 200, origin);
   }
+  try {
+    const limit = await newsletterSignupRateLimit(request, env);
+    if (limit.unavailable) return json({ error: "RATE_LIMIT_UNAVAILABLE", message: "Inscription temporairement indisponible. Merci de réessayer." }, 503, origin);
+    if (!limit.allowed) return json({ error: "TOO_MANY_REQUESTS", message: "Trop de tentatives. Merci de réessayer dans 15 minutes." }, 429, origin);
+  } catch (error) {
+    console.error("Newsletter rate limit failed:", error?.code || error?.name || "unknown");
+    return json({ error: "RATE_LIMIT_UNAVAILABLE", message: "Inscription temporairement indisponible. Merci de réessayer." }, 503, origin);
+  }
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  if (email.length > 254 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
     return json({ error: "INVALID_EMAIL", message: "Vérifiez votre adresse e-mail." }, 400, origin);
   }
   if (body.consent_confirmed !== true) {
@@ -90,7 +118,10 @@ async function handleNewsletterSubscribe(request, env) {
   }
   try {
     const result = await withDatabase(env, db => db.query(
-      "INSERT INTO public.newsletter_subscribers AS existing(email,status,subscribed_at,unsubscribed_at) VALUES($1,'subscribed',NOW(),NULL) ON CONFLICT(email) DO UPDATE SET status='subscribed',subscribed_at=NOW(),unsubscribed_at=NULL WHERE existing.status='subscribed' OR $2::boolean RETURNING id,status",
+      `INSERT INTO public.newsletter_subscribers AS existing(email,status,subscribed_at,unsubscribed_at,consent_at,consent_source,consent_version)
+       VALUES($1,'subscribed',NOW(),NULL,NOW(),'public_form','newsletter-consent-v1')
+       ON CONFLICT(email) DO UPDATE SET status='subscribed',subscribed_at=NOW(),unsubscribed_at=NULL,consent_at=NOW(),consent_source='public_form',consent_version='newsletter-consent-v1'
+       WHERE existing.status='subscribed' OR $2::boolean RETURNING id,status`,
       [email, body.consent_confirmed]
     ));
     if (!result.rows[0]) return json({ error: "RECONSENT_REQUIRED", message: "Cette adresse est désinscrite. Une nouvelle confirmation explicite est nécessaire." }, 409, origin);
@@ -804,7 +835,7 @@ async function handleAdmin(request, env, url, origin) {
     const email=String(b.email||"").trim().toLowerCase();
     if(email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return json({error:"INVALID_EMAIL"},400,origin);
     if(b.consent_confirmed!==true)return json({error:"EXPLICIT_CONSENT_REQUIRED",message:"Confirmez que cette personne a explicitement accepté de recevoir la newsletter."},400,origin);
-    const r=await withDatabase(env,db=>db.query("INSERT INTO public.newsletter_subscribers AS existing(email,status,subscribed_at,unsubscribed_at) VALUES($1,'subscribed',NOW(),NULL) ON CONFLICT(email) DO UPDATE SET status='subscribed',subscribed_at=NOW(),unsubscribed_at=NULL WHERE existing.status='subscribed' OR $2::boolean RETURNING id,email,status,subscribed_at",[email,b.consent_confirmed]));
+    const r=await withDatabase(env,db=>db.query("INSERT INTO public.newsletter_subscribers AS existing(email,status,subscribed_at,unsubscribed_at,consent_at,consent_source,consent_version) VALUES($1,'subscribed',NOW(),NULL,NOW(),'admin_manual','newsletter-consent-v1') ON CONFLICT(email) DO UPDATE SET status='subscribed',subscribed_at=NOW(),unsubscribed_at=NULL,consent_at=NOW(),consent_source='admin_manual',consent_version='newsletter-consent-v1' WHERE existing.status='subscribed' OR $2::boolean RETURNING id,email,status,subscribed_at",[email,b.consent_confirmed]));
     if(!r.rows[0])return json({error:"RECONSENT_REQUIRED",message:"Cette adresse est désinscrite. Une nouvelle confirmation explicite de consentement est nécessaire avant sa réinscription."},409,origin);
     return json({subscriber:r.rows[0]},200,origin);
   }
