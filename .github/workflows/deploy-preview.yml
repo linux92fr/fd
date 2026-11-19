@@ -6,6 +6,7 @@ on:
       - port-preview-features-production
       - redesign/homepage-compact
       - redesign/admin-modern-workspace
+      - feat/content-questionnaire-editor
     paths:
       - "src/**"
       - "public/**"
