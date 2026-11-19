@@ -1,0 +1,55 @@
+name: Dependency audit and safe fixes
+
+on:
+  push:
+    branches:
+      - port-preview-features-production
+    paths:
+      - ".github/workflows/dependency-maintenance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  audit-and-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout working branch
+        uses: actions/checkout@v4
+        with:
+          ref: port-preview-features-production
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Generate reproducible lockfile
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Apply non-breaking security updates
+        run: npm audit fix --ignore-scripts
+      - name: Report remaining audit findings
+        shell: bash
+        run: |
+          npm audit --json > npm-audit.json || true
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const report = JSON.parse(fs.readFileSync('npm-audit.json', 'utf8'));
+          const counts = report.metadata?.vulnerabilities || {};
+          console.log('Remaining npm audit findings:', JSON.stringify(counts));
+          for (const [name, item] of Object.entries(report.vulnerabilities || {})) {
+            console.log(JSON.stringify({name, severity:item.severity, isDirect:item.isDirect, range:item.range, fixAvailable:item.fixAvailable}));
+          }
+          NODE
+      - name: Commit lockfile and safe dependency updates
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          if git diff --cached --quiet; then
+            echo "No dependency or lockfile changes to commit."
+          else
+            git commit -m "chore: lock dependencies and apply safe audit fixes"
+            git push origin HEAD:port-preview-features-production
+          fi
