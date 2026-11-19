@@ -25,6 +25,8 @@ import { createAuthClient } from '@neondatabase/auth';
 const auth = createAuthClient('https://ep-crimson-wave-b972yi2i.neonauth.c-7.eu-central-1.aws.neon.tech/neondb/auth');
 const root = document.querySelector('#app');
 let mediaReturn = null;
+let currentAdmin = null;
+const roleLabels = { admin: 'Super administrateur', admin_delegate: 'Administrateur délégué', editor: 'Rédacteur', employee: 'Salarié / adhérent' };
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 async function token() {
@@ -41,9 +43,11 @@ async function call(path, options = {}) {
   return data;
 }
 function frame(content) {
-  root.innerHTML = '<div class="admin-shell"><header class="admin-header"><a class="admin-brand" href="/"><strong>FO</strong> FOCOM · Free Distribution</a><a href="/">← Voir le site</a></header><main class="admin-main">' + content + '</main></div>';
+  const account = currentAdmin ? '<span class="admin-session" style="display:inline-flex;align-items:center;gap:.45rem;padding:.45rem .7rem;border:1px solid #d9dee7;border-radius:999px;font-size:.82rem;color:#263244"><span aria-hidden="true" style="width:8px;height:8px;border-radius:50%;background:#16834a;display:inline-block"></span><span>Connecté : <strong>' + esc(currentAdmin.name || currentAdmin.email) + '</strong> · ' + esc(roleLabels[currentAdmin.role] || currentAdmin.role || 'Compte') + '</span></span>' : '';
+  root.innerHTML = '<div class="admin-shell"><header class="admin-header"><a class="admin-brand" href="/"><strong>FO</strong> FOCOM · Free Distribution</a><div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;justify-content:flex-end">' + account + '<a href="/">← Voir le site</a></div></header><main class="admin-main">' + content + '</main></div>';
 }
 function login(message = '') {
+  currentAdmin = null;
   frame('<section class="admin-panel admin-login"><span class="eyebrow">Espace sécurisé</span><h1>Administration</h1><p>Connectez-vous avec votre adresse e-mail et votre mot de passe.</p><form id="login"><label>Adresse e-mail<input name="email" type="email" required autocomplete="username" placeholder="vous@exemple.fr"></label><label>Mot de passe<input name="password" type="password" required autocomplete="current-password"></label><button class="button button-red">Se connecter</button><p class="admin-message">' + esc(message) + '</p></form><button type="button" id="first-password" class="text-button">Première connexion ? Définir mon mot de passe</button><br><button type="button" id="forgot-password" class="text-button">Mot de passe oublié ?</button><p><button type="button" id="verify-email-link" class="text-button">Vérifier mon adresse e-mail</button></p></section>');
   root.querySelector('#login').addEventListener('submit', async e => {
     e.preventDefault();
@@ -262,8 +266,9 @@ async function accountEmailsPage() {
 async function dashboard() {
   try {
     const { overview = {}, user = {} } = await call('/api/admin/overview');
+    currentAdmin = user;
     frame('<div class="admin-title-row"><div><span class="eyebrow">Espace sécurisé FO</span><h1>Tableau de bord</h1><p>Vue d’ensemble de l’activité du site et accès rapide aux outils de gestion.</p></div><button id="logout" class="button button-outline-dark">Déconnexion</button></div><section class="admin-panel"><div class="admin-toolbar"><h2>Vue d’ensemble</h2><button id="refresh-overview" class="button button-outline-dark">Actualiser</button></div><div class="admin-stats-grid"><article class="admin-stat"><span>Articles</span><strong>' + Number(overview.articles_total || 0) + '</strong><small>' + Number(overview.articles_published || 0) + ' publiés · ' + Number(overview.articles_draft || 0) + ' brouillons</small></article>' + (['admin','admin_delegate'].includes(user.role) ? '<article class="admin-stat"><span>Messages reçus</span><strong>' + Number(overview.messages_total || 0) + '</strong><small>' + Number(overview.messages_new || 0) + ' nouveaux · ' + Number(overview.messages_in_progress || 0) + ' en cours</small></article><article class="admin-stat"><span>Messages traités</span><strong>' + Number(overview.messages_resolved || 0) + '</strong><small>Demandes marquées comme traitées</small></article>' : '') + '</div></section><section class="admin-panel"><div class="admin-toolbar"><h2>Accès rapides</h2></div><div class="admin-quick-links"><button id="open-articles" class="button button-red">Gérer les articles</button>' + (['admin','admin_delegate'].includes(user.role) ? '<button id="open-messages" class="button button-outline-dark">Messages reçus</button><button id="open-survey" class="button button-outline-dark">Bilan du questionnaire</button><button id="open-media" class="button button-outline-dark">Médiathèque</button><button id="open-homepage" class="button button-outline-dark">Page d’accueil</button><button id="open-newsletter" class="button button-outline-dark">Newsletter</button><button id="open-users" class="button button-outline-dark">Utilisateurs et rôles</button><button id="open-account-emails" class="button button-outline-dark">Prévisualiser les e-mails de compte</button>' : '') + '</div><p class="admin-help">Le bilan du questionnaire reste dans son espace sécurisé dédié. Les médias et les autres réglages seront ajoutés progressivement.</p></section>');
-    root.querySelector('#logout').onclick = async () => { await auth.signOut(); login('Vous êtes déconnecté.'); };
+    root.querySelector('#logout').onclick = async () => { await auth.signOut(); currentAdmin = null; login('Vous êtes déconnecté.'); };
     root.querySelector('#refresh-overview').onclick = () => dashboard();
     root.querySelector('#open-articles').onclick = () => articlesPage();
     if (root.querySelector('#open-messages')) root.querySelector('#open-messages').onclick = () => messages();
