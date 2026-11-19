@@ -1,17 +1,17 @@
 name: Validate admin migration (no deployment)
 
 on:
-  push:
-    branches:
-      - migration-admin-production
   pull_request:
     branches:
       - main
     paths:
-      - "src/admin.js"
-      - "src/worker.js"
+      - "src/**"
       - "package.json"
       - "package-lock.json"
+      - ".env.production"
+      - ".env.preview"
+      - "wrangler.jsonc"
+      - "wrangler.preview.jsonc"
       - ".github/workflows/validate-admin-migration.yml"
 
 permissions:
@@ -29,7 +29,13 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install
-      - name: Build application
-        run: npm run build
+      - name: Build production assets
+        run: npm run build:production
+      - name: Validate production Worker configuration
+        run: npx wrangler deploy --dry-run --config wrangler.jsonc
+      - name: Build preview assets
+        run: npm run build:preview
+      - name: Validate preview Worker configuration
+        run: npx wrangler deploy --dry-run --config wrangler.preview.jsonc
       - name: Check Worker syntax
         run: node --check src/worker.js
