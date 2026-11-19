@@ -620,7 +620,7 @@ async function handleAdmin(request, env, url, origin) {
     return json({ previewOnly: true, sender: { name: "FO Free Distribution", email: "no-reply@focom-iliad.fr" }, replyTo: { email: "contact@focom-iliad.fr" }, ...email }, 200, origin);
   }
   const isEditor = admin.role === "editor";
-  const messagingAllowed = url.pathname === "/api/admin/private-messages" || /^\/api\/admin\/private-messages\/[0-9a-f-]{36}\/read$/i.test(url.pathname);
+  const messagingAllowed = url.pathname === "/api/admin/private-messages" || /^\/api\/admin\/private-messages\/[0-9a-f-]{36}(?:\/read)?$/i.test(url.pathname);
   const editorAllowed = url.pathname === "/api/admin/articles" || url.pathname === "/api/admin/overview" || messagingAllowed || /^\/api\/admin\/articles\/\d+$/.test(url.pathname);
   if ((admin.role === "employee" && !messagingAllowed) || (isEditor && !editorAllowed)) return json({ error: "INSUFFICIENT_PERMISSIONS" }, 403, origin);
 
@@ -1024,6 +1024,18 @@ async function handleAdmin(request, env, url, origin) {
     });
     if (!sent) return json({ error: "RECIPIENT_NOT_AVAILABLE" }, 404, origin);
     return json({ message: sent }, 201, origin);
+  }
+
+  const privateDeleteMatch = url.pathname.match(/^\/api\/admin\/private-messages\/([0-9a-f-]{36})$/i);
+  if (privateDeleteMatch && request.method === "DELETE") {
+    if (!canAdminister) return json({ error: "ADMIN_REQUIRED" }, 403, origin);
+    const result = await withDatabase(env, db => db.query(
+      "DELETE FROM public.private_messages WHERE id=$1::uuid RETURNING id",
+      [privateDeleteMatch[1]]
+    ));
+    return result.rowCount
+      ? json({ ok: true, deletedId: result.rows[0].id }, 200, origin)
+      : json({ error: "MESSAGE_NOT_FOUND" }, 404, origin);
   }
 
   const privateReadMatch = url.pathname.match(/^\/api\/admin\/private-messages\/([0-9a-f-]{36})\/read$/i);
