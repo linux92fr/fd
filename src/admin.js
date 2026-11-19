@@ -283,6 +283,7 @@ async function dashboard() {
       (canManage ? '<section class="admin-module-section"><div class="admin-section-heading"><span class="admin-section-number">02</span><div><h2>Communication</h2><p>Suivez les échanges avec les salariés et les campagnes d’information.</p></div></div><div class="admin-module-grid">' +
       tile('open-messages','✉','Messages reçus','Demandes envoyées depuis le formulaire') +
       tile('open-private-messages','◌','Messagerie interne','Échanges privés entre les comptes actifs', unreadCount > 0 ? '<span class="private-unread-badge">' + unreadCount + '</span>' : '') +
+      tile('open-mailbox','✉','Boîte e-mail FO','Ouvrir le Webmail Amen · free-distri@focom-iliad.fr') +
       tile('open-newsletter','↗','Newsletter','Abonnés, campagnes et suivi des envois') +
       '</div></section>' +
       '<section class="admin-module-section"><div class="admin-section-heading"><span class="admin-section-number">03</span><div><h2>Ressources</h2><p>Centralisez les visuels utilisés dans les contenus du site.</p></div></div><div class="admin-module-grid">' +
@@ -298,7 +299,7 @@ async function dashboard() {
     const routes = {
       'open-articles': articlesPage, 'open-messages': messages, 'open-survey': surveyPage,
       'open-media': mediaPage, 'open-homepage': homepagePage, 'open-newsletter': () => newsletterPage({ call, frame, root, dashboard }),
-      'open-users': usersPage, 'open-account-emails': accountEmailsPage, 'open-private-messages': () => privateMessagesPage(), 'open-content': siteContentPage
+      'open-users': usersPage, 'open-account-emails': accountEmailsPage, 'open-private-messages': () => privateMessagesPage(), 'open-mailbox': () => window.open('https://webmail.amen.fr/', '_blank', 'noopener,noreferrer'), 'open-content': siteContentPage
     };
     for (const [id, handler] of Object.entries(routes)) root.querySelector('#' + id)?.addEventListener('click', handler);
   } catch (err) { login('Impossible de charger le tableau de bord : ' + (err.message || 'ERREUR_INCONNUE') + '.'); }
