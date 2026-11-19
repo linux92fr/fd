@@ -802,3 +802,13 @@ body.newsletter-popup-open{overflow:hidden}
   .main-nav,.main-nav a,.main-nav a::after,.menu-toggle{transition:none!important;animation:none!important}
   .main-nav.is-open a{opacity:1;transform:none}
 }
+
+/* Signed-in account tools shared by public page headers */
+.public-account-tools{display:flex;align-items:center;gap:.55rem;margin-left:auto}
+.public-session-chip{display:inline-flex;align-items:center;gap:.55rem;padding:.42rem .72rem;border:1px solid rgba(30,41,59,.16);border-radius:999px;background:rgba(255,255,255,.96);color:#202938;max-width:260px}
+.public-session-dot{width:8px;height:8px;flex:0 0 8px;border-radius:50%;background:#16834a;box-shadow:0 0 0 3px rgba(22,131,74,.12)}
+.public-session-copy{display:flex;flex-direction:column;min-width:0;line-height:1.2}
+.public-session-copy strong{font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.public-session-copy small{font-size:.66rem;color:#64748b;white-space:nowrap}
+.public-notification-placeholder{width:36px;height:36px;display:inline-grid;place-items:center;border:1px solid rgba(30,41,59,.16);border-radius:50%;background:#fff;color:#64748b;font-size:1.25rem;opacity:.7;cursor:not-allowed}
+@media(max-width:760px){.public-account-tools{width:100%;justify-content:flex-end;order:3;margin:0;padding:.35rem 0}.public-session-chip{max-width:min(72vw,260px)}}
