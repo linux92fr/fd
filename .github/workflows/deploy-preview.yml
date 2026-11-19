@@ -5,6 +5,7 @@ on:
     branches:
       - port-preview-features-production
       - redesign/homepage-compact
+      - redesign/admin-modern-workspace
     paths:
       - "src/**"
       - "public/**"
