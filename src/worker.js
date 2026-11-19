@@ -1026,7 +1026,7 @@ async function handleAdmin(request, env, url, origin) {
     return json({ message: sent }, 201, origin);
   }
 
-  const privateReadMatch = url.pathname.match(/^\\/api\\/admin\\/private-messages\\/([0-9a-f-]{36})\\/read$/i);
+  const privateReadMatch = url.pathname.match(/^\/api\/admin\/private-messages\/([0-9a-f-]{36})\/read$/i);
   if (privateReadMatch && request.method === "POST") {
     const result = await withDatabase(env, db => db.query(
       "UPDATE public.private_messages SET read_at=NOW() WHERE id=$1::uuid AND recipient_id=$2 AND read_at IS NULL RETURNING id, read_at",
