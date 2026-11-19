@@ -920,3 +920,10 @@ body:has(.hero) .contact-section{padding-top:48px;padding-bottom:48px}
   body:has(.hero) .compact-disclosure[open]>.disclaimer,
   body:has(.hero) .compact-disclosure[open]>.survey-form{margin:16px}
 }
+
+
+/* Improve contrast in the dark commitments panel. */
+#revendications .claims-commitment .eyebrow,
+#revendications .claims-commitment h3,
+#revendications .claims-commitment p{color:#fff}
+#revendications .claims-commitment .eyebrow{color:#ffb7c3}
