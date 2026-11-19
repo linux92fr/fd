@@ -1,22 +1,18 @@
 import { Client } from "pg";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 
-const allowedOrigins = new Set([
-  "https://fd.focom-iliad.fr",
-  "https://fd.linux92fr.workers.dev",
-]);
+const allowedOrigins = new Set(["https://fd.focom-iliad.fr", "https://fd.linux92fr.workers.dev"]);
 const AUTH_BASE_URL = "https://ep-sweet-resonance-b9ov2yaa.neonauth.c-7.eu-central-1.aws.neon.tech/neondb/auth";
 const AUTH_JWKS = createRemoteJWKSet(new URL(AUTH_BASE_URL + "/.well-known/jwks.json"));
 const AUTH_ISSUER = new URL(AUTH_BASE_URL).origin;
 const ADMIN_EMAIL = "contact@focom-iliad.fr";
 const LEGACY_ADMIN_EMAIL = "free-distri@focom-iliad.fr";
-const ADMIN_EMAILS = [ADMIN_EMAIL, LEGACY_ADMIN_EMAIL];
-const isProtectedAdminEmail = email => ADMIN_EMAILS.includes(String(email || "").toLowerCase());
+const isProtectedAdminEmail = email => [ADMIN_EMAIL, LEGACY_ADMIN_EMAIL].includes(String(email || "").toLowerCase());
 const HOMEPAGE_DEFAULTS = {"hero_eyebrow":"FOCOM · Free Distribution","hero_title":"La voix des salariés\ndes boutiques Free.","hero_text":"Un espace d’information, de dialogue et d’action syndicale dédié aux équipes de Free Distribution.","hero_primary_label":"Nos revendications","hero_primary_url":"#revendications","hero_secondary_label":"Nous contacter","hero_secondary_url":"/contact","intro_eyebrow":"Notre engagement","intro_title":"À vos côtés, au quotidien.","intro_text":"La vente, le conseil et l’accompagnement des clients en boutique mobilisent des compétences et un engagement essentiels. FO Free Distribution porte la parole des salariés et défend leurs intérêts professionnels.","news_eyebrow":"Restez informés","news_title":"Actualités","news_note":"Les informations dédiées à Free Distribution","claims_eyebrow":"Élections professionnelles · FO Free Distribution","claims_title":"Nos revendications","claims_lead":"Notre ambition : obtenir des avancées concrètes sur les salaires, les commissions, les conditions de travail et la reconnaissance des équipes en boutique. Voici les engagements que FO souhaite porter avec vous.","rights_eyebrow":"Mieux connaître vos droits","rights_title":"Vos droits au travail","rights_lead":"Des repères pratiques pour comprendre vos droits et savoir vers qui vous tourner. Les contenus détaillés seront publiés prochainement.","survey_eyebrow":"Votre avis compte","survey_title":"Donnez votre avis en toute confidentialité.","survey_text":"Cette consultation permet de faire remonter les attentes et les priorités des salariés de Free Distribution. Vos réponses sont enregistrées sans nom ni adresse e-mail.","hero_image":"","intro_image":"","news_image":"","claims_image":"","rights_image":"","survey_image":""};
 const SURVEY_ACCESS_ISSUER = "https://linux92fr.cloudflareaccess.com";
 const SURVEY_ACCESS_AUDIENCE = "e58983dc65cd10dd66fdb66e69e85c1e099f2427f9de1e8fb03b84b961bb22ed";
 const SURVEY_ACCESS_JWKS = createRemoteJWKSet(new URL(SURVEY_ACCESS_ISSUER + "/cdn-cgi/access/certs"));
-const SURVEY_ADMIN_EMAILS = new Set(ADMIN_EMAILS);
+const SURVEY_ADMIN_EMAILS = new Set([ADMIN_EMAIL, LEGACY_ADMIN_EMAIL]);
 
 function json(data, status = 200, origin = "") {
   const headers = {
@@ -24,7 +20,7 @@ function json(data, status = 200, origin = "") {
     "cache-control": "no-store",
     "x-content-type-options": "nosniff",
     "referrer-policy": "strict-origin-when-cross-origin",
-    "content-security-policy": "default-src 'none'; frame-ancestors 'none'",
+    "content-security-policy": "default-src 'none'; frame-src 'self'; frame-ancestors 'none'",
   };
   if (allowedOrigins.has(origin)) {
     headers["access-control-allow-origin"] = origin;
@@ -44,6 +40,23 @@ async function withDatabase(env, callback) {
   }
 }
 
+
+async function withAdvisoryLock(env, key, callback) {
+  if (!env.HYPERDRIVE?.connectionString) throw new Error("DATABASE_NOT_CONFIGURED");
+  const client = new Client({ connectionString: env.HYPERDRIVE.connectionString });
+  let locked = false;
+  try {
+    await client.connect();
+    const result = await client.query("SELECT pg_try_advisory_lock(hashtextextended($1, 0)) AS locked", [key]);
+    locked = result.rows[0]?.locked === true;
+    if (!locked) return { lockUnavailable: true };
+    return await callback();
+  } finally {
+    if (locked) await client.query("SELECT pg_advisory_unlock(hashtextextended($1, 0))", [key]).catch(() => {});
+    await client.end().catch(() => {});
+  }
+}
+
 async function requireSurveyAdmin(request) {
   const assertion = request.headers.get("Cf-Access-Jwt-Assertion");
   if (!assertion) return false;
@@ -59,6 +72,88 @@ async function requireSurveyAdmin(request) {
 }
 
 
+async function newsletterSignupRateLimit(request, env) {
+  const clientIp = request.headers.get("CF-Connecting-IP");
+  if (!clientIp) return { allowed: false, unavailable: true };
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(clientIp));
+  const ipHash = [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, "0")).join("");
+  return withDatabase(env, async db => {
+    const result = await db.query(
+      `INSERT INTO public.newsletter_signup_rate_limits(ip_hash,window_started_at,attempts)
+       VALUES($1,NOW(),1)
+       ON CONFLICT(ip_hash) DO UPDATE
+       SET attempts=CASE WHEN public.newsletter_signup_rate_limits.window_started_at < NOW()-INTERVAL '15 minutes' THEN 1 ELSE public.newsletter_signup_rate_limits.attempts+1 END,
+           window_started_at=CASE WHEN public.newsletter_signup_rate_limits.window_started_at < NOW()-INTERVAL '15 minutes' THEN NOW() ELSE public.newsletter_signup_rate_limits.window_started_at END
+       RETURNING attempts`,
+      [ipHash]
+    );
+    await db.query("DELETE FROM public.newsletter_signup_rate_limits WHERE window_started_at < NOW()-INTERVAL '1 day'");
+    return { allowed: Number(result.rows[0]?.attempts || 0) <= 5 };
+  });
+}
+
+async function handleNewsletterSubscribe(request, env) {
+  const origin = request.headers.get("Origin") || "";
+  if (!allowedOrigins.has(origin)) return json({ error: "INVALID_ORIGIN" }, 403, origin);
+  if (request.headers.get("content-type")?.split(";")[0].trim() !== "application/json") {
+    return json({ error: "INVALID_CONTENT_TYPE" }, 415, origin);
+  }
+  let body;
+  try { body = await request.json(); } catch { return json({ error: "INVALID_JSON" }, 400, origin); }
+  if (typeof body.website === "string" && body.website.trim()) {
+    return json({ ok: true, message: "Votre demande d’inscription a bien été prise en compte." }, 200, origin);
+  }
+  try {
+    const limit = await newsletterSignupRateLimit(request, env);
+    if (limit.unavailable) return json({ error: "RATE_LIMIT_UNAVAILABLE", message: "Inscription temporairement indisponible. Merci de réessayer." }, 503, origin);
+    if (!limit.allowed) return json({ error: "TOO_MANY_REQUESTS", message: "Trop de tentatives. Merci de réessayer dans 15 minutes." }, 429, origin);
+  } catch (error) {
+    console.error("Newsletter rate limit failed:", error?.code || error?.name || "unknown");
+    return json({ error: "RATE_LIMIT_UNAVAILABLE", message: "Inscription temporairement indisponible. Merci de réessayer." }, 503, origin);
+  }
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return json({ error: "INVALID_EMAIL", message: "Vérifiez votre adresse e-mail." }, 400, origin);
+  }
+  if (body.consent_confirmed !== true) {
+    return json({ error: "EXPLICIT_CONSENT_REQUIRED", message: "Cochez la case pour confirmer votre inscription à la newsletter." }, 400, origin);
+  }
+  try {
+    const result = await withDatabase(env, db => db.query(
+      `INSERT INTO public.newsletter_subscribers AS existing(email,status,subscribed_at,unsubscribed_at,consent_at,consent_source,consent_version)
+       VALUES($1,'subscribed',NOW(),NULL,NOW(),'public_form','newsletter-consent-v1')
+       ON CONFLICT(email) DO UPDATE SET status='subscribed',subscribed_at=NOW(),unsubscribed_at=NULL,consent_at=NOW(),consent_source='public_form',consent_version='newsletter-consent-v1'
+       WHERE existing.status='subscribed' OR $2::boolean RETURNING id,status`,
+      [email, body.consent_confirmed]
+    ));
+    if (!result.rows[0]) return json({ error: "RECONSENT_REQUIRED", message: "Cette adresse est désinscrite. Une nouvelle confirmation explicite est nécessaire." }, 409, origin);
+    return json({ ok: true, message: "Votre inscription à la newsletter FO Free Distribution est bien enregistrée." }, 200, origin);
+  } catch (error) {
+    console.error("Newsletter subscription failed:", error?.code || error?.name || "unknown");
+    return json({ error: "SUBSCRIPTION_UNAVAILABLE", message: "L’inscription n’a pas pu être enregistrée. Merci de réessayer ultérieurement." }, 503, origin);
+  }
+}
+
+async function contactRateLimit(request, env) {
+  const clientIp = request.headers.get("CF-Connecting-IP");
+  if (!clientIp) return { allowed: false, unavailable: true };
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(clientIp));
+  const ipHash = [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, "0")).join("");
+  return withDatabase(env, async db => {
+    const result = await db.query(
+      `INSERT INTO public.contact_rate_limits(ip_hash,window_started_at,attempts)
+       VALUES($1,NOW(),1)
+       ON CONFLICT(ip_hash) DO UPDATE
+       SET attempts=CASE WHEN public.contact_rate_limits.window_started_at < NOW()-INTERVAL '15 minutes' THEN 1 ELSE public.contact_rate_limits.attempts+1 END,
+           window_started_at=CASE WHEN public.contact_rate_limits.window_started_at < NOW()-INTERVAL '15 minutes' THEN NOW() ELSE public.contact_rate_limits.window_started_at END
+       RETURNING attempts`,
+      [ipHash]
+    );
+    await db.query("DELETE FROM public.contact_rate_limits WHERE window_started_at < NOW()-INTERVAL '1 day'");
+    return { allowed: Number(result.rows[0]?.attempts || 0) <= 3 };
+  });
+}
+
 async function handleContact(request, env) {
   const origin = request.headers.get("Origin") || "";
   if (!allowedOrigins.has(origin)) return json({ error: "INVALID_ORIGIN" }, 403, origin);
@@ -72,6 +167,14 @@ async function handleContact(request, env) {
     return json({ ok: true, message: "Votre message a bien été envoyé." }, 200, origin);
   }
 
+  try {
+    const limit = await contactRateLimit(request, env);
+    if (limit.unavailable) return json({ error: "RATE_LIMIT_UNAVAILABLE", message: "Le formulaire est temporairement indisponible. Merci de réessayer." }, 503, origin);
+    if (!limit.allowed) return json({ error: "TOO_MANY_REQUESTS", message: "Vous avez atteint la limite de 3 messages en 15 minutes. Merci de réessayer plus tard." }, 429, origin);
+  } catch (error) {
+    console.error("Contact rate limit failed:", error?.code || error?.name || "unknown");
+    return json({ error: "RATE_LIMIT_UNAVAILABLE", message: "Le formulaire est temporairement indisponible. Merci de réessayer." }, 503, origin);
+  }
   const name = typeof body.name === "string" ? body.name.trim() : "";
   const email = typeof body.email === "string" ? body.email.trim() : "";
   const subject = typeof body.subject === "string" ? body.subject.trim() : "";
@@ -274,34 +377,39 @@ $('#csv').onclick=csv;$('#pdf').onclick=()=>window.print();$('#refresh').onclick
 </script></body></html>`;
 }
 
-async function requireAdmin(request, env) {
+async function requireSiteAccess(request, env) {
   const authorization = request.headers.get("Authorization") || "";
   const token = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
   if (!token || token.length > 8192) return { denied: "TOKEN_MISSING" };
-
   let payload;
   try {
     ({ payload } = await jwtVerify(token, AUTH_JWKS, { issuer: AUTH_ISSUER }));
   } catch (error) {
     const code = String(error.code || error.name || "UNKNOWN").replace(/[^A-Z0-9_]/gi, "").slice(0, 64);
-    console.warn("Admin JWT verification failed:", code);
+    console.warn("Site access JWT verification failed:", code);
     return { denied: "JWT_VERIFICATION_FAILED_" + code };
   }
   if (typeof payload.sub !== "string") return { denied: "TOKEN_SUBJECT_MISSING" };
-
   try {
-    return await withDatabase(env, async (db) => {
+    return await withDatabase(env, async db => {
       const result = await db.query(
-        'SELECT id, email, role FROM neon_auth."user" WHERE id = $1 AND lower(email) IN (lower($2), lower($3)) AND "emailVerified" = TRUE',
+        `SELECT u.id, u.email, u.name,
+                CASE WHEN lower(u.email) IN (lower($2), lower($3)) THEN 'admin' ELSE COALESCE(a.role, 'employee') END AS role,
+                CASE WHEN lower(u.email) IN (lower($2), lower($3)) THEN 'active' ELSE COALESCE(a.status, 'pending') END AS status
+         FROM neon_auth."user" u
+         LEFT JOIN public.site_user_access a ON a.user_id = u.id
+         WHERE u.id = $1 AND u."emailVerified" = TRUE`,
         [payload.sub, ADMIN_EMAIL, LEGACY_ADMIN_EMAIL]
       );
-      if (!result.rows[0]) return { denied: "USER_NOT_FOUND_OR_EMAIL_UNVERIFIED" };
-      if (result.rows[0].role !== "admin") return { denied: "USER_ROLE_NOT_ADMIN" };
-      return { admin: result.rows[0] };
+      const user = result.rows[0];
+      if (!user) return { denied: "USER_NOT_FOUND_OR_EMAIL_UNVERIFIED" };
+      if (user.status !== "active") return { denied: user.status === "suspended" ? "ACCOUNT_SUSPENDED" : "ACCOUNT_PENDING_APPROVAL" };
+      if (!["admin", "admin_delegate", "editor", "employee"].includes(user.role)) return { denied: "INVALID_SITE_ROLE" };
+      return { user };
     });
   } catch (error) {
     const code = String(error.code || error.name || "UNKNOWN").replace(/[^A-Z0-9_]/gi, "").slice(0, 64);
-    console.error("Admin database check failed:", code);
+    console.error("Site access database check failed:", code);
     return { denied: "DATABASE_CHECK_FAILED_" + code };
   }
 }
@@ -311,10 +419,562 @@ function slugify(value) {
     .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 180);
 }
 
+
+function escapeEmailHtml(value) {
+  return String(value || "").replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function base64UrlToBytes(value) {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized + "=".repeat((4 - normalized.length % 4) % 4);
+  const binary = atob(padded);
+  return Uint8Array.from(binary, char => char.charCodeAt(0));
+}
+
+async function verifyNeonWebhook(rawBody, headers) {
+  const signature = headers.get("x-neon-signature") || "";
+  const kid = headers.get("x-neon-signature-kid") || "";
+  const timestamp = headers.get("x-neon-timestamp") || "";
+  if (!signature || !kid || !/^\d{10,16}$/.test(timestamp)) throw new Error("MISSING_WEBHOOK_SIGNATURE");
+  const timestampMs = Number(timestamp);
+  if (!Number.isSafeInteger(timestampMs) || Math.abs(Date.now() - timestampMs) > 5 * 60 * 1000) {
+    throw new Error("WEBHOOK_TIMESTAMP_INVALID");
+  }
+
+  const parts = signature.split(".");
+  if (parts.length !== 3 || parts[1] !== "") throw new Error("WEBHOOK_SIGNATURE_FORMAT_INVALID");
+  const [headerB64, , signatureB64] = parts;
+  let protectedHeader;
+  try { protectedHeader = JSON.parse(new TextDecoder().decode(base64UrlToBytes(headerB64))); }
+  catch { throw new Error("WEBHOOK_SIGNATURE_HEADER_INVALID"); }
+  if (protectedHeader.alg !== "EdDSA") throw new Error("WEBHOOK_SIGNATURE_ALGORITHM_INVALID");
+
+  const jwksResponse = await fetch(AUTH_BASE_URL + "/.well-known/jwks.json", {
+    headers: { "accept": "application/json" },
+    cf: { cacheTtl: 300, cacheEverything: true },
+  });
+  if (!jwksResponse.ok) throw new Error("WEBHOOK_JWKS_UNAVAILABLE");
+  const jwks = await jwksResponse.json();
+  const jwk = Array.isArray(jwks.keys) ? jwks.keys.find(key => key.kid === kid && key.kty === "OKP" && key.crv === "Ed25519") : null;
+  if (!jwk) throw new Error("WEBHOOK_SIGNING_KEY_NOT_FOUND");
+
+  const payloadB64 = btoa(String.fromCharCode(...new TextEncoder().encode(rawBody)))
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  const signaturePayload = timestamp + "." + payloadB64;
+  const signaturePayloadB64 = btoa(String.fromCharCode(...new TextEncoder().encode(signaturePayload)))
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  const signingInput = new TextEncoder().encode(headerB64 + "." + signaturePayloadB64);
+  const publicKey = await crypto.subtle.importKey("jwk", jwk, { name: "Ed25519" }, false, ["verify"]);
+  const valid = await crypto.subtle.verify({ name: "Ed25519" }, publicKey, base64UrlToBytes(signatureB64), signingInput);
+  if (!valid) throw new Error("WEBHOOK_SIGNATURE_INVALID");
+  return JSON.parse(rawBody);
+}
+
+function renderOtpEmail(payload, isInitialPasswordSetup = false) {
+  const email = String(payload?.user?.email || "").trim().toLowerCase();
+  const name = String(payload?.user?.name || "").trim().slice(0, 120);
+  const code = String(payload?.event_data?.otp_code || "");
+  const type = String(payload?.event_data?.otp_type || "");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !/^\d{6}$/.test(code)) return null;
+
+  const greeting = name ? "Bonjour " + escapeEmailHtml(name) + "," : "Bonjour,";
+  let subject, title, explanation, extra = "";
+  if (type === "email-verification") {
+    subject = "Vérifiez votre adresse e-mail – FO Free Distribution";
+    title = "Confirmez votre adresse e-mail";
+    explanation = "Voici votre code pour vérifier votre adresse e-mail sur l’espace FO Free Distribution.";
+    extra = "<p><strong>Important :</strong> la vérification de votre adresse e-mail ne vaut pas approbation de votre compte. Votre accès restera en attente jusqu’à validation par un administrateur FO.</p>";
+  } else if (type === "forget-password" && isInitialPasswordSetup) {
+    subject = "Définissez votre mot de passe – FO Free Distribution";
+    title = "Définir votre mot de passe";
+    explanation = "Utilisez ce code pour choisir votre mot de passe et terminer la première étape de votre inscription à l’espace FO Free Distribution.";
+    extra = "<p>Votre compte restera en attente jusqu’à son approbation par un administrateur FO. La définition de votre mot de passe ne donne pas encore accès à l’espace d’administration.</p>";
+  } else if (type === "forget-password") {
+    subject = "Votre code de réinitialisation – FO Free Distribution";
+    title = "Réinitialiser votre mot de passe";
+    explanation = "Utilisez ce code pour poursuivre la réinitialisation de votre mot de passe.";
+  } else if (type === "sign-in") {
+    subject = "Votre code de connexion – FO Free Distribution";
+    title = "Confirmez votre connexion";
+    explanation = "Utilisez ce code pour confirmer votre connexion à l’espace FO Free Distribution.";
+  } else {
+    return null;
+  }
+
+  const html = '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#25262b;line-height:1.6"><div style="background:#c8102e;color:#fff;padding:22px 28px;font-size:20px;font-weight:bold">FO Free Distribution</div><div style="padding:28px"><p>' + greeting + '</p><h1 style="font-size:24px">' + title + '</h1><p>' + explanation + '</p><p style="margin:24px 0;padding:18px;background:#f4f4f5;text-align:center;font-size:32px;font-weight:bold;letter-spacing:8px">' + code + '</p>' + extra + '<p>Ce code est à usage unique. Ne le communiquez à personne.</p><p style="color:#666;font-size:13px">FO Free Distribution · <a href="https://fd.focom-iliad.fr">fd.focom-iliad.fr</a></p></div></div>';
+  const text = greeting.replace(/<[^>]+>/g, "") + "\n\n" + title + "\n\n" + explanation + "\n\nCode : " + code + (type === "email-verification" ? "\n\\nImportant : la vérification de votre adresse e-mail ne vaut pas approbation de votre compte. Votre accès restera en attente jusqu’à validation par un administrateur FO." : "") + "\n\\nCe code est à usage unique. Ne le communiquez à personne.\nFO Free Distribution";
+  return { email, subject, html, text };
+}
+
+async function handleNeonAuthWebhook(request, env) {
+  if (request.method !== "POST") return json({ error: "METHOD_NOT_ALLOWED" }, 405);
+  if (!env.BREVO_API_KEY) return json({ error: "EMAIL_PROVIDER_NOT_CONFIGURED" }, 503);
+  const rawBody = await request.text();
+  if (rawBody.length > 32768) return json({ error: "PAYLOAD_TOO_LARGE" }, 413);
+
+  let payload;
+  try { payload = await verifyNeonWebhook(rawBody, request.headers); }
+  catch (error) {
+    console.warn("Neon Auth webhook rejected:", error?.message || "verification failed");
+    return json({ error: "INVALID_WEBHOOK_SIGNATURE" }, 401);
+  }
+
+  if (payload?.event_type !== "send.otp") return json({ success: true, ignored: true }, 200);
+  const eventId = typeof payload.event_id === "string" ? payload.event_id.trim() : "";
+  if (!eventId || eventId.length > 200) return json({ error: "INVALID_EVENT_ID" }, 400);
+  let isInitialPasswordSetup = false;
+  try {
+    const accountState = await withDatabase(env, db => db.query(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM neon_auth."user" u
+         JOIN public.site_user_access a ON a.user_id = u.id
+         WHERE lower(u.email) = lower($1)
+           AND a.status = 'pending'
+           AND NOT EXISTS (
+             SELECT 1 FROM neon_auth.account ac
+             WHERE ac."userId" = u.id
+               AND ac."providerId" = 'credential'
+               AND NULLIF(ac.password, '') IS NOT NULL
+           )
+       ) AS initial_setup`,
+      [String(payload?.user?.email || "").trim().toLowerCase()]
+    ));
+    isInitialPasswordSetup = accountState.rows[0]?.initial_setup === true;
+  } catch (error) {
+    console.error("Neon OTP account-state lookup failed:", error?.code || error?.name || "unknown");
+    return json({ error: "OTP_ACCOUNT_STATE_UNAVAILABLE" }, 503);
+  }
+  const email = renderOtpEmail(payload, isInitialPasswordSetup);
+  if (!email) return json({ error: "INVALID_OTP_EVENT" }, 400);
+
+  let claimed = false;
+  try {
+    const claim = await withDatabase(env, db => db.query(
+      "INSERT INTO public.neon_auth_webhook_events (event_id,event_type,status) VALUES ($1,'send.otp','processing') ON CONFLICT (event_id) DO NOTHING RETURNING event_id",
+      [eventId]
+    ));
+    claimed = claim.rows.length === 1;
+    if (!claimed) {
+      const existing = await withDatabase(env, db => db.query(
+        "SELECT status FROM public.neon_auth_webhook_events WHERE event_id=$1",
+        [eventId]
+      ));
+      if (existing.rows[0]?.status === "sent") return json({ success: true, duplicate: true }, 200);
+      return json({ error: "EVENT_ALREADY_PROCESSING" }, 503);
+    }
+  } catch (error) {
+    console.error("Neon webhook idempotency check failed:", error?.code || error?.name || "unknown");
+    return json({ error: "WEBHOOK_STORAGE_UNAVAILABLE" }, 503);
+  }
+
+  try {
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: { "accept": "application/json", "api-key": env.BREVO_API_KEY, "content-type": "application/json" },
+      body: JSON.stringify({
+        sender: { name: "FO Free Distribution", email: "no-reply@focom-iliad.fr" },
+        replyTo: { email: "contact@focom-iliad.fr" },
+        to: [{ email: email.email }],
+        subject: email.subject,
+        htmlContent: email.html,
+        textContent: email.text,
+      }),
+    });
+    if (!response.ok) {
+      const detail = await response.text();
+      console.error("Neon OTP email delivery failed:", response.status, detail.slice(0, 300));
+      await withDatabase(env, db => db.query("DELETE FROM public.neon_auth_webhook_events WHERE event_id=$1 AND status='processing'", [eventId]));
+      return json({ error: "EMAIL_DELIVERY_FAILED" }, 502);
+    }
+    await withDatabase(env, db => db.query(
+      "UPDATE public.neon_auth_webhook_events SET status='sent',sent_at=now() WHERE event_id=$1 AND status='processing'",
+      [eventId]
+    ));
+    return json({ success: true }, 200);
+  } catch (error) {
+    console.error("Neon OTP email request failed:", error?.name || "unknown");
+    if (claimed) {
+      await withDatabase(env, db => db.query("DELETE FROM public.neon_auth_webhook_events WHERE event_id=$1 AND status='processing'", [eventId])).catch(() => {});
+    }
+    return json({ error: "EMAIL_PROVIDER_UNAVAILABLE" }, 502);
+  }
+}
+
+function renderAccountEmail(type, name) {
+  const safeName = String(name || "").trim().slice(0, 120);
+  const greeting = safeName ? "Bonjour " + safeName + "," : "Bonjour,";
+  const common = '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#25262b;line-height:1.6"><div style="background:#c8102e;color:#fff;padding:22px 28px;font-size:20px;font-weight:bold">FO Free Distribution</div><div style="padding:28px">';
+  const footer = '<p style="margin-top:28px;color:#666;font-size:13px">FO Free Distribution<br><a href="https://fd.focom-iliad.fr" style="color:#c8102e">fd.focom-iliad.fr</a></p></div></div>';
+  if (type === "welcome") {
+    const subject = "Bienvenue sur l’espace FO Free Distribution";
+    const intro = "Votre compte a bien été créé. Il reste à vérifier votre adresse e-mail si cette étape vous est demandée, puis à attendre l’activation de votre accès par l’équipe FO.";
+    const html = common + '<p>' + escapeEmailHtml(greeting) + '</p><h1 style="font-size:24px">Bienvenue !</h1><p>' + intro + '</p><p>Vous recevrez un autre message lorsque votre accès sera activé. En attendant, aucune action supplémentaire n’est nécessaire.</p>' + footer;
+    const text = greeting + "\n\nBienvenue sur l’espace FO Free Distribution.\n\n" + intro + "\n\nVous recevrez un autre message lorsque votre accès sera activé.";
+    return { subject, html, text };
+  }
+  if (type === "activation") {
+    const subject = "Votre accès à l’espace FO Free Distribution est activé";
+    const intro = "Un administrateur vient d’activer votre compte. Vous pouvez désormais vous connecter à votre espace FO Free Distribution.";
+    const html = common + '<p>' + escapeEmailHtml(greeting) + '</p><h1 style="font-size:24px">Votre compte est activé</h1><p>' + intro + '</p><p style="margin:26px 0"><a href="https://fd.focom-iliad.fr/admin" style="display:inline-block;background:#c8102e;color:#fff;text-decoration:none;padding:12px 20px;border-radius:5px;font-weight:bold">Accéder à mon espace</a></p>' + footer;
+    const text = greeting + "\n\nVotre compte est activé.\n\n" + intro + "\n\nConnexion : https://fd.focom-iliad.fr/admin";
+    return { subject, html, text };
+  }
+  return null;
+}
+
+
+async function sendAccountEmailDetailed(env, recipient, name, type) {
+  const email = renderAccountEmail(type, name);
+  if (!email) return { sent: false, reason: "INVALID_TEMPLATE" };
+  if (!env.BREVO_API_KEY) return { sent: false, reason: "BREVO_API_KEY_MISSING" };
+  try {
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: { "accept": "application/json", "api-key": env.BREVO_API_KEY, "content-type": "application/json" },
+      body: JSON.stringify({
+        sender: { name: "FO Free Distribution", email: "no-reply@focom-iliad.fr" },
+        replyTo: { email: "contact@focom-iliad.fr" },
+        to: [{ email: recipient }],
+        subject: email.subject,
+        htmlContent: email.html,
+        textContent: email.text,
+      }),
+    });
+    if (response.ok) return { sent: true, status: response.status };
+    const detail = await response.json().catch(() => ({}));
+    const message = String(detail.message || detail.code || "Brevo a refusé la demande").slice(0, 180);
+    console.error("Account email delivery failed:", type, response.status, message);
+    return { sent: false, status: response.status, reason: message };
+  } catch (error) {
+    console.error("Account email request failed:", type, error?.name || "unknown");
+    return { sent: false, reason: "NETWORK_ERROR" };
+  }
+}
+
+async function sendAccountEmail(env, recipient, name, type) {
+  const email = renderAccountEmail(type, name);
+  if (!email || !env.BREVO_API_KEY) return false;
+  try {
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: { "accept": "application/json", "api-key": env.BREVO_API_KEY, "content-type": "application/json" },
+      body: JSON.stringify({
+        sender: { name: "FO Free Distribution", email: "no-reply@focom-iliad.fr" },
+        replyTo: { email: "contact@focom-iliad.fr" },
+        to: [{ email: recipient }],
+        subject: email.subject,
+        htmlContent: email.html,
+        textContent: email.text,
+      }),
+    });
+    if (!response.ok) {
+      const detail = await response.text();
+      console.error("Account email delivery failed:", type, response.status, detail.slice(0, 240));
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error("Account email request failed:", type, error?.name || "unknown");
+    return false;
+  }
+}
+
 async function handleAdmin(request, env, url, origin) {
-  const access = await requireAdmin(request, env);
+  const access = await requireSiteAccess(request, env);
   if (access.denied) return json({ error: access.denied }, 401, origin);
-  const admin = access.admin;
+  const admin = access.user;
+  const isAdmin = admin.role === "admin";
+  const isAdminDelegate = admin.role === "admin_delegate";
+  const isSuperAdmin = admin.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+  const canAdminister = isAdmin || isAdminDelegate;
+  if (url.pathname === "/api/admin/account-email-preview" && request.method === "GET") {
+    if (!isAdmin) return json({ error: "SUPER_ADMIN_REQUIRED" }, 403, origin);
+    const type = url.searchParams.get("type") || "";
+    const name = url.searchParams.get("name") || "";
+    const email = renderAccountEmail(type, name);
+    if (!email) return json({ error: "INVALID_EMAIL_TEMPLATE" }, 400, origin);
+    return json({ previewOnly: true, sender: { name: "FO Free Distribution", email: "no-reply@focom-iliad.fr" }, replyTo: { email: "contact@focom-iliad.fr" }, ...email }, 200, origin);
+  }
+  const isEditor = admin.role === "editor";
+  const messagingAllowed = url.pathname === "/api/admin/private-messages" || /^\/api\/admin\/private-messages\/[0-9a-f-]{36}(?:\/read)?$/i.test(url.pathname);
+  const editorAllowed = url.pathname === "/api/admin/articles" || url.pathname === "/api/admin/overview" || messagingAllowed || /^\/api\/admin\/articles\/\d+$/.test(url.pathname);
+  if ((admin.role === "employee" && !messagingAllowed) || (isEditor && !editorAllowed)) return json({ error: "INSUFFICIENT_PERMISSIONS" }, 403, origin);
+
+
+  if (url.pathname === "/api/admin/users" && request.method === "POST") {
+    if (!canAdminister) return json({ error: "ADMIN_REQUIRED" }, 403, origin);
+    let body;
+    try { body = await request.json(); } catch { return json({ error: "INVALID_JSON" }, 400, origin); }
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+    const role = body.role || "employee";
+    if (isAdminDelegate && (role === "admin" || role === "admin_delegate")) return json({ error: "DELEGATE_CANNOT_ASSIGN_ADMIN" }, 403, origin);
+    if (!name || name.length > 120 || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+        !["employee", "editor", "admin", "admin_delegate"].includes(role)) {
+      return json({ error: "INVALID_USER_FIELDS", message: "Vérifiez le nom, l’adresse e-mail et le rôle." }, 400, origin);
+    }
+    if (!env.NEON_API_KEY) return json({ error: "NEON_API_KEY_MISSING", message: "La clé API Neon n’est pas configurée sur ce Worker." }, 503, origin);
+    try {
+      const neonResponse = await fetch("https://console.neon.tech/api/v2/projects/delicate-lake-24433548/branches/br-aged-sky-b9610vxa/auth/users", {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + env.NEON_API_KEY, "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({ email, name }),
+      });
+      const neonData = await neonResponse.json().catch(() => ({}));
+      if (!neonResponse.ok) {
+        const neonError = String(neonData.message || neonData.error || neonData.code || "Erreur Neon sans détail");
+        const duplicate = neonResponse.status === 409 || /already exists|duplicate|user already exists/i.test(neonError);
+        console.error("Neon user creation rejected:", neonResponse.status, neonError.slice(0, 240));
+        return json({
+          error: duplicate ? "USER_ALREADY_EXISTS" : "NEON_USER_CREATE_FAILED",
+          message: duplicate ? "Un compte existe déjà pour cette adresse e-mail." : "Neon a refusé la création (" + neonResponse.status + ") : " + neonError.slice(0, 180)
+        }, duplicate ? 409 : 502, origin);
+      }
+      if (!neonData.id) return json({ error: "NEON_INVALID_RESPONSE" }, 502, origin);
+      try {
+        await withDatabase(env, db => db.query(
+          `INSERT INTO public.site_user_access (user_id, role, status, approved_by, approved_at, updated_at)
+           VALUES ($1, $2, 'pending', $3, NULL, now())
+           ON CONFLICT (user_id) DO UPDATE SET role = EXCLUDED.role, status = 'pending',
+             approved_by = EXCLUDED.approved_by, approved_at = NULL, updated_at = now()`,
+          [neonData.id, role, admin.id]
+        ));
+      } catch (dbError) {
+        console.error("Site access record creation failed after Neon user creation:", dbError?.code || dbError?.name || "unknown");
+        return json({ error: "USER_CREATED_ACCESS_PENDING", message: "Le compte d’authentification a été créé, mais son accès au site n’a pas pu être initialisé. Ne relancez pas la création ; actualisez la liste et contactez l’administrateur." }, 503, origin);
+      }
+      const emailSent = await sendAccountEmail(env, email, name, "welcome");
+      return json({ success: true, user: { id: neonData.id, name, email, role, status: "pending" }, emailSent }, 201, origin);
+    } catch (error) {
+      console.error("Neon user creation request failed:", error?.name || "unknown");
+      return json({ error: "NEON_API_UNAVAILABLE", message: "Le service de création de compte est momentanément indisponible." }, 503, origin);
+    }
+  }
+
+  const resendWelcomeMatch = url.pathname.match(/^\/api\/admin\/users\/([0-9a-f-]{36})\/send-welcome$/i);
+  if (resendWelcomeMatch && request.method === "POST") {
+    if (!canAdminister) return json({ error: "ADMIN_REQUIRED" }, 403, origin);
+    const result = await withDatabase(env, db => db.query(
+      'SELECT u.email, u.name FROM neon_auth."user" u JOIN public.site_user_access a ON a.user_id=u.id WHERE u.id=$1 AND a.status=\'pending\'',
+      [resendWelcomeMatch[1]]
+    ));
+    if (!result.rows.length) return json({ error: "PENDING_USER_NOT_FOUND" }, 404, origin);
+    const delivery = await sendAccountEmailDetailed(env, result.rows[0].email, result.rows[0].name, "welcome");
+    return json({ success: delivery.sent, emailSent: delivery.sent, diagnostic: delivery }, delivery.sent ? 200 : 502, origin);
+  }
+
+  const deleteUserMatch = url.pathname.match(/^\/api\/admin\/users\/([0-9a-f-]{36})$/i);
+  if (deleteUserMatch && request.method === "DELETE") {
+    if (!canAdminister) return json({ error: "ADMIN_REQUIRED" }, 403, origin);
+    const targetId = deleteUserMatch[1];
+    if (targetId === admin.id) return json({ error: "CANNOT_DELETE_SELF", message: "Vous ne pouvez pas supprimer votre propre compte." }, 403, origin);
+    const target = await withDatabase(env, db => db.query(
+      `SELECT u.id, u.email, COALESCE(a.role, CASE WHEN lower(u.email) IN (lower($2), lower($3)) THEN 'admin' ELSE 'employee' END) AS role FROM neon_auth."user" u LEFT JOIN public.site_user_access a ON a.user_id=u.id WHERE u.id=$1 LIMIT 1`, [targetId, ADMIN_EMAIL, LEGACY_ADMIN_EMAIL]
+    ));
+    if (!target.rows.length) return json({ error: "USER_NOT_FOUND" }, 404, origin);
+    if (isAdminDelegate && (isProtectedAdminEmail(target.rows[0].email) || ["admin", "admin_delegate"].includes(target.rows[0].role))) return json({ error: "PRIVILEGED_ACCOUNT_PROTECTED" }, 403, origin);
+    if (isProtectedAdminEmail(target.rows[0].email)) {
+      return json({ error: "PROTECTED_ACCOUNT", message: "Le compte administrateur principal est protégé." }, 403, origin);
+    }
+    if (!env.NEON_API_KEY) return json({ error: "NEON_API_KEY_MISSING" }, 503, origin);
+    const neonResponse = await fetch(
+      "https://console.neon.tech/api/v2/projects/delicate-lake-24433548/branches/br-aged-sky-b9610vxa/auth/users/" + encodeURIComponent(targetId),
+      { method: "DELETE", headers: { "Authorization": "Bearer " + env.NEON_API_KEY, "Accept": "application/json" } }
+    );
+    if (!neonResponse.ok && neonResponse.status !== 404) {
+      const detail = await neonResponse.text();
+      console.error("Neon user deletion failed:", neonResponse.status, detail.slice(0, 180));
+      return json({ error: "NEON_USER_DELETE_FAILED", message: "Neon a refusé la suppression du compte (" + neonResponse.status + ")." }, 502, origin);
+    }
+    try {
+      await withDatabase(env, db => db.query("DELETE FROM public.site_user_access WHERE user_id=$1", [targetId]));
+    } catch (error) {
+      console.error("User access cleanup failed:", error?.code || error?.name || "unknown");
+      return json({ success: true, accessCleanupPending: true, message: "Le compte Neon est supprimé, mais le nettoyage de son autorisation nécessite une vérification." }, 200, origin);
+    }
+    return json({ success: true, deletedEmail: target.rows[0].email }, 200, origin);
+  }
+
+  if (url.pathname === "/api/admin/users" && request.method === "GET") {
+    const r = await withDatabase(env, db => db.query(
+      `SELECT u.id, u.name, u.email, u."emailVerified" AS email_verified, u."createdAt" AS created_at,
+              COALESCE(a.role, CASE WHEN lower(u.email) IN (lower($1), lower($2)) THEN 'admin' ELSE 'employee' END) AS role,
+              COALESCE(a.status, CASE WHEN lower(u.email) IN (lower($1), lower($2)) THEN 'active' ELSE 'pending' END) AS status
+       FROM neon_auth."user" u LEFT JOIN public.site_user_access a ON a.user_id = u.id
+       WHERE ($3::boolean OR lower(u.email) NOT IN (lower($1), lower($2)))
+       ORDER BY u."createdAt" DESC LIMIT 500`, [ADMIN_EMAIL, LEGACY_ADMIN_EMAIL, !isAdminDelegate]
+    ));
+    return json({ users: r.rows, canAssignDelegate: isSuperAdmin }, 200, origin);
+  }
+  const userId = url.pathname.startsWith("/api/admin/users/") ? url.pathname.slice("/api/admin/users/".length) : "";
+  if (/^[0-9a-f-]{36}$/i.test(userId) && request.method === "PATCH") {
+    let body;
+    try { body = await request.json(); } catch { return json({ error: "INVALID_JSON" }, 400, origin); }
+    const role = body.role, status = body.status;
+    if (!["admin", "admin_delegate", "editor", "employee"].includes(role) || !["pending", "active", "suspended"].includes(status)) return json({ error: "INVALID_ROLE_OR_STATUS" }, 400, origin);
+    const result = await withDatabase(env, async db => {
+      const target = await db.query(
+        `SELECT u.id, u.email, u.name, COALESCE(a.status, 'pending') AS previous_status,
+                COALESCE(a.role, CASE WHEN lower(u.email) IN (lower($2), lower($3)) THEN 'admin' ELSE 'employee' END) AS previous_role
+         FROM neon_auth."user" u LEFT JOIN public.site_user_access a ON a.user_id = u.id
+         WHERE u.id = $1`, [userId, ADMIN_EMAIL, LEGACY_ADMIN_EMAIL]
+      );
+      if (!target.rows[0]) return { missing: true };
+      if (isProtectedAdminEmail(target.rows[0].email) && (role !== "admin" || status !== "active")) return { protected: true };
+      if (isAdminDelegate && (role === "admin" || role === "admin_delegate" || target.rows[0].previous_role === "admin" || target.rows[0].previous_role === "admin_delegate")) return { forbiddenTarget: true };
+      if (userId === admin.id && (role !== "admin" || status !== "active")) return { selfProtected: true };
+      await db.query(
+        `INSERT INTO public.site_user_access (user_id, role, status, approved_by, approved_at, updated_at)
+         VALUES ($1, $2, $3, $4, CASE WHEN $3 = 'active' THEN now() ELSE NULL END, now())
+         ON CONFLICT (user_id) DO UPDATE SET role = EXCLUDED.role, status = EXCLUDED.status,
+           approved_by = EXCLUDED.approved_by, approved_at = EXCLUDED.approved_at, updated_at = now()`,
+        [userId, role, status, admin.id]
+      );
+      return { updated: true, email: target.rows[0].email, name: target.rows[0].name, activated: target.rows[0].previous_status !== "active" && status === "active" };
+    });
+    if (result.missing) return json({ error: "USER_NOT_FOUND" }, 404, origin);
+    if (result.protected) return json({ error: "SUPER_ADMIN_PROTECTED" }, 403, origin);
+    if (result.forbiddenTarget) return json({ error: "DELEGATE_CANNOT_ASSIGN_ADMIN" }, 403, origin);
+    if (result.selfProtected) return json({ error: "CANNOT_CHANGE_OWN_ADMIN_ACCESS", message: "Un administrateur ne peut pas rétrograder ou suspendre son propre compte." }, 403, origin);
+    const activationEmailSent = result.activated ? await sendAccountEmail(env, result.email, result.name, "activation") : null;
+    return json({ success: true, activationEmailSent }, 200, origin);
+  }
+
+  if (url.pathname === "/api/admin/newsletter/brevo-status" && request.method === "GET") {
+    // Read-only authentication check. Never sends email and never exposes the API key.
+    if (!env.BREVO_API_KEY) return json({ configured: false, valid: false }, 200, origin);
+    try {
+      const response = await fetch("https://api.brevo.com/v3/account", {
+        method: "GET",
+        headers: { "accept": "application/json", "api-key": env.BREVO_API_KEY },
+      });
+      return json({ configured: true, valid: response.ok }, 200, origin);
+    } catch {
+      return json({ configured: true, valid: false }, 200, origin);
+    }
+  }
+
+  if (url.pathname === "/api/admin/newsletter/subscribers" && request.method === "GET") {
+    const r=await withDatabase(env,db=>db.query("SELECT id,email,status,subscribed_at FROM public.newsletter_subscribers ORDER BY subscribed_at DESC LIMIT 2000"));
+    return json({subscribers:r.rows},200,origin);
+  }
+  if (url.pathname === "/api/admin/newsletter/subscribers" && request.method === "POST") {
+    let b;try{b=await request.json()}catch{return json({error:"INVALID_JSON"},400,origin)}
+    const email=String(b.email||"").trim().toLowerCase();
+    if(email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return json({error:"INVALID_EMAIL"},400,origin);
+    if(b.consent_confirmed!==true)return json({error:"EXPLICIT_CONSENT_REQUIRED",message:"Confirmez que cette personne a explicitement accepté de recevoir la newsletter."},400,origin);
+    const r=await withDatabase(env,db=>db.query("INSERT INTO public.newsletter_subscribers AS existing(email,status,subscribed_at,unsubscribed_at,consent_at,consent_source,consent_version) VALUES($1,'subscribed',NOW(),NULL,NOW(),'admin_manual','newsletter-consent-v1') ON CONFLICT(email) DO UPDATE SET status='subscribed',subscribed_at=NOW(),unsubscribed_at=NULL,consent_at=NOW(),consent_source='admin_manual',consent_version='newsletter-consent-v1' WHERE existing.status='subscribed' OR $2::boolean RETURNING id,email,status,subscribed_at",[email,b.consent_confirmed]));
+    if(!r.rows[0])return json({error:"RECONSENT_REQUIRED",message:"Cette adresse est désinscrite. Une nouvelle confirmation explicite de consentement est nécessaire avant sa réinscription."},409,origin);
+    return json({subscriber:r.rows[0]},200,origin);
+  }
+  const subMatch=url.pathname.match(/^\/api\/admin\/newsletter\/subscribers\/(.+)$/);
+  if(subMatch&&request.method==="DELETE"){
+    const email=decodeURIComponent(subMatch[1]).toLowerCase();
+    const r=await withDatabase(env,db=>db.query("UPDATE public.newsletter_subscribers SET status='unsubscribed',unsubscribed_at=NOW() WHERE email=$1 RETURNING email",[email]));
+    return r.rowCount?json({ok:true},200,origin):json({error:"SUBSCRIBER_NOT_FOUND"},404,origin);
+  }
+  if(url.pathname==="/api/admin/newsletter/campaigns"&&request.method==="GET"){
+    const r=await withDatabase(env,db=>db.query("SELECT c.id,c.subject,c.preview_text,c.html_content,c.status,c.recipient_count,c.sent_count,c.failed_count,c.created_at,c.updated_at,c.sent_at,(SELECT COUNT(*)::int FROM public.newsletter_campaign_recipients r WHERE r.campaign_id=c.id AND r.status='unknown') AS unknown_count,(SELECT COUNT(*)::int FROM public.newsletter_campaign_recipients r WHERE r.campaign_id=c.id AND r.status='pending') AS pending_count,(SELECT COUNT(*)::int FROM public.newsletter_campaign_recipients r WHERE r.campaign_id=c.id AND r.status='failed') AS failed_recipient_count,(SELECT COUNT(*)::int FROM public.newsletter_campaign_recipients r WHERE r.campaign_id=c.id AND r.status='skipped') AS skipped_count FROM public.newsletter_campaigns c ORDER BY c.updated_at DESC LIMIT 200"));
+    return json({campaigns:r.rows},200,origin);
+  }
+  if(url.pathname==="/api/admin/newsletter/campaigns"&&request.method==="POST"){
+    let b;try{b=await request.json()}catch{return json({error:"INVALID_JSON"},400,origin)}
+    const subject=String(b.subject||"").trim(),preview=String(b.preview_text||"").trim(),html=String(b.html_content||"").trim(),id=b.id?Number(b.id):null;
+    if(!subject||subject.length>180||preview.length>240||!html||html.length>100000||(id&&(!Number.isSafeInteger(id)||id<1)))return json({error:"INVALID_CAMPAIGN_FIELDS"},400,origin);
+    const r=await withDatabase(env,async db=>id?(await db.query("UPDATE public.newsletter_campaigns SET subject=$1,preview_text=$2,html_content=$3,updated_at=NOW() WHERE id=$4 AND status='draft' RETURNING id,subject,preview_text,html_content,status,recipient_count,sent_count,failed_count,created_at,updated_at,sent_at",[subject,preview,html,id])).rows[0]||null:(await db.query("INSERT INTO public.newsletter_campaigns(subject,preview_text,html_content) VALUES($1,$2,$3) RETURNING id,subject,preview_text,html_content,status,recipient_count,sent_count,failed_count,created_at,updated_at,sent_at",[subject,preview,html])).rows[0]);
+    return r?json({campaign:r},200,origin):json({error:"CAMPAIGN_NOT_EDITABLE"},409,origin);
+  }
+  const testSendMatch=url.pathname.match(/^\/api\/admin\/newsletter\/campaigns\/(\d+)\/test-send$/);
+  if(testSendMatch&&request.method==="POST"){
+    if(url.hostname!=="fd-preview.linux92fr.workers.dev")return json({error:"TEST_SEND_PREVIEW_ONLY"},404,origin);
+    const id=Number(testSendMatch[1]);
+    const campaign=await withDatabase(env,async db=>(await db.query("SELECT id FROM public.newsletter_campaigns WHERE id=$1",[id])).rows[0]||null);
+    if(!campaign)return json({error:"CAMPAIGN_NOT_FOUND"},404,origin);
+    return json({ok:true,simulated:true,message:"Test simulé en préproduction : aucun e-mail n’a été envoyé."},200,origin);
+  }
+
+  const sendMatch=url.pathname.match(/^\/api\/admin\/newsletter\/campaigns\/(\d+)\/send$/);
+  if(sendMatch&&request.method==="POST"){
+    const newsletterSimulator=env.NEWSLETTER_SIMULATOR==="true"&&new URL(request.url).hostname==="fd-preview.linux92fr.workers.dev";
+    if(!env.BREVO_API_KEY&&!newsletterSimulator)return json({error:"BREVO_NOT_CONFIGURED"},503,origin);
+    const id=Number(sendMatch[1]);
+    let body={};try{body=await request.json()}catch{return json({error:"INVALID_JSON"},400,origin)}
+    const action=body.action||"start";
+    if(!["start","resume","retry_failed"].includes(action))return json({error:"INVALID_ACTION"},400,origin);
+    const outcome=await withAdvisoryLock(env,"newsletter-campaign:"+id,async()=>{
+      const prepared=await withDatabase(env,async db=>{
+        const campaign=(await db.query("SELECT id,status FROM public.newsletter_campaigns WHERE id=$1",[id])).rows[0];
+        if(!campaign)return {error:"CAMPAIGN_NOT_FOUND"};
+        if(action==="start"){
+          if(campaign.status!=="draft")return {error:"CAMPAIGN_NOT_STARTABLE"};
+          await db.query("INSERT INTO public.newsletter_campaign_recipients(campaign_id,subscriber_id,email) SELECT $1,id,email FROM public.newsletter_subscribers WHERE status='subscribed' ON CONFLICT(campaign_id,subscriber_id) DO NOTHING",[id]);
+        } else {
+          if(!["sending","partial"].includes(campaign.status))return {error:"CAMPAIGN_NOT_RESUMABLE"};
+          const active=await db.query("SELECT COUNT(*)::int AS n FROM public.newsletter_campaign_recipients WHERE campaign_id=$1 AND status='sending' AND updated_at>NOW()-INTERVAL '5 minutes'",[id]);
+          if(active.rows[0].n)return {error:"DELIVERY_STILL_RUNNING"};
+          await db.query("UPDATE public.newsletter_campaign_recipients SET status='unknown',last_error='Interruption pendant la tentative : résultat Brevo indéterminé',updated_at=NOW() WHERE campaign_id=$1 AND status='sending' AND updated_at<=NOW()-INTERVAL '5 minutes'",[id]);
+          if(action==="retry_failed")await db.query("UPDATE public.newsletter_campaign_recipients r SET status='pending',last_error=NULL,updated_at=NOW() FROM public.newsletter_subscribers s WHERE r.campaign_id=$1 AND r.status='failed' AND s.id=r.subscriber_id AND s.status='subscribed'",[id]);
+        }
+        // A pending recipient who unsubscribed after the campaign snapshot is terminally skipped.
+        await db.query("UPDATE public.newsletter_campaign_recipients r SET status='skipped',last_error='Désinscription avant envoi',updated_at=NOW() FROM public.newsletter_subscribers s WHERE r.campaign_id=$1 AND r.status='pending' AND s.id=r.subscriber_id AND s.status<>'subscribed'",[id]);
+        const counts=await db.query("SELECT COUNT(*)::int AS total,COUNT(*) FILTER(WHERE status='sent')::int AS sent,COUNT(*) FILTER(WHERE status='failed')::int AS failed,COUNT(*) FILTER(WHERE status='unknown')::int AS unknown,COUNT(*) FILTER(WHERE status='pending')::int AS pending,COUNT(*) FILTER(WHERE status='skipped')::int AS skipped FROM public.newsletter_campaign_recipients WHERE campaign_id=$1",[id]);
+        if(!counts.rows[0].total)return {error:"NO_ACTIVE_SUBSCRIBERS"};
+        if(counts.rows[0].total>500)return {error:"TOO_MANY_SUBSCRIBERS_FOR_SINGLE_SEND"};
+        await db.query("UPDATE public.newsletter_campaigns SET status='sending',recipient_count=$1,sent_count=$2,failed_count=$3,updated_at=NOW() WHERE id=$4",[counts.rows[0].total,counts.rows[0].sent,counts.rows[0].failed,id]);
+        return {counts:counts.rows[0]};
+      });
+      if(prepared.error)return {error:prepared.error};
+      let processed=0;
+      while(processed<10){
+        const item=await withDatabase(env,async db=>{
+          const r=await db.query("UPDATE public.newsletter_campaign_recipients cr SET status='sending',attempts=attempts+1,updated_at=NOW(),last_error=NULL WHERE cr.id=(SELECT cr2.id FROM public.newsletter_campaign_recipients cr2 JOIN public.newsletter_subscribers s ON s.id=cr2.subscriber_id AND s.status='subscribed' WHERE cr2.campaign_id=$1 AND cr2.status='pending' ORDER BY cr2.id LIMIT 1 FOR UPDATE OF cr2 SKIP LOCKED) RETURNING cr.id,cr.email",[id]);
+          return r.rows[0]||null;
+        });
+        if(!item)break;
+        processed++;
+        const sub=await withDatabase(env,db=>db.query("SELECT unsubscribe_token FROM public.newsletter_subscribers WHERE email=$1 AND status='subscribed'",[item.email]));
+        const token=sub.rows[0]?.unsubscribe_token;
+        if(!token){
+          await withDatabase(env,db=>db.query("UPDATE public.newsletter_campaign_recipients SET status='skipped',last_error='Désinscription avant envoi',updated_at=NOW() WHERE id=$1",[item.id]));
+          continue;
+        }
+        const unsubscribeUrl=new URL("/newsletter/desinscription",url.origin);unsubscribeUrl.searchParams.set("token",token);const u=unsubscribeUrl.toString();
+        const c=await withDatabase(env,db=>db.query("SELECT subject,preview_text,html_content FROM public.newsletter_campaigns WHERE id=$1",[id]));
+        const campaign=c.rows[0];
+        const html=(campaign.preview_text?'<div style="display:none;max-height:0;overflow:hidden;opacity:0">'+campaign.preview_text.replace(/[&<>]/g," ")+'</div>':"")+campaign.html_content+'<hr><p style="font:12px Arial;color:#666">Vous recevez cette newsletter FO Free Distribution. <a href="'+u+'">Se désinscrire</a>.</p>';
+        try{
+          let response;
+          if(newsletterSimulator){
+            response={ok:item.email==="test-desinscription@example.com",status:item.email==="test-desinscription@example.com"?201:400};
+          } else {
+            response=await fetch("https://api.brevo.com/v3/smtp/email",{method:"POST",headers:{"accept":"application/json","api-key":env.BREVO_API_KEY,"content-type":"application/json"},body:JSON.stringify({sender:{name:"FO Free Distribution",email:"newsletter@focom-iliad.fr"},to:[{email:item.email}],subject:campaign.subject,htmlContent:html,textContent:html.replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim()+"\n\nSe désinscrire : "+u,headers:{"List-Unsubscribe":"<"+u+">","List-Unsubscribe-Post":"List-Unsubscribe=One-Click"}})});
+          }
+          if(response.ok)await withDatabase(env,db=>db.query("UPDATE public.newsletter_campaign_recipients SET status='sent',sent_at=NOW(),updated_at=NOW() WHERE id=$1",[item.id]));
+          else if(response.status>=500)await withDatabase(env,db=>db.query("UPDATE public.newsletter_campaign_recipients SET status='unknown',last_error=$2,updated_at=NOW() WHERE id=$1",[item.id,"Réponse Brevo HTTP "+response.status]));
+          else await withDatabase(env,db=>db.query("UPDATE public.newsletter_campaign_recipients SET status='failed',last_error=$2,updated_at=NOW() WHERE id=$1",[item.id,newsletterSimulator?"Échec simulé (aucun email envoyé)":"Réponse Brevo HTTP "+response.status]));
+        }catch(e){
+          await withDatabase(env,db=>db.query("UPDATE public.newsletter_campaign_recipients SET status='unknown',last_error='Erreur réseau : résultat Brevo indéterminé',updated_at=NOW() WHERE id=$1",[item.id]));
+        }
+      }
+      const final=await withDatabase(env,async db=>{
+        await db.query("UPDATE public.newsletter_campaign_recipients r SET status='skipped',last_error='Désinscription avant envoi',updated_at=NOW() FROM public.newsletter_subscribers s WHERE r.campaign_id=$1 AND r.status='pending' AND s.id=r.subscriber_id AND s.status<>'subscribed'",[id]);
+        const r=await db.query("SELECT COUNT(*) FILTER(WHERE status='sent')::int AS sent,COUNT(*) FILTER(WHERE status='failed')::int AS failed,COUNT(*) FILTER(WHERE status='unknown')::int AS unknown,COUNT(*) FILTER(WHERE status='skipped')::int AS skipped,COUNT(*) FILTER(WHERE status IN ('pending','sending'))::int AS remaining FROM public.newsletter_campaign_recipients WHERE campaign_id=$1",[id]);
+        const x=r.rows[0],status=x.remaining?"sending":(x.failed||x.unknown)?"partial":"sent";
+        await db.query("UPDATE public.newsletter_campaigns SET status=$1,sent_count=$2,failed_count=$3,sent_at=CASE WHEN $4 THEN NOW() ELSE NULL END,updated_at=NOW() WHERE id=$5",[status,x.sent,x.failed,(status==="sent"||status==="partial"),id]);
+        return {...x,status};
+      });
+      return {ok:true,...final};
+    });
+    if(outcome.lockUnavailable)return json({error:"DELIVERY_STILL_RUNNING",message:"Un traitement de cette campagne est déjà en cours. Réessayez dans quelques instants."},409,origin);
+    if(outcome.error){
+      if(outcome.error==="NO_ACTIVE_SUBSCRIBERS")return json({error:outcome.error},409,origin);
+      if(outcome.error==="TOO_MANY_SUBSCRIBERS_FOR_SINGLE_SEND")return json({error:outcome.error,limit:500},413,origin);
+      return json({error:outcome.error},409,origin);
+    }
+    return json(outcome,200,origin);
+  }
 
   if (url.pathname === "/api/admin/homepage" && request.method === "GET") {
     const result = await withDatabase(env, db => db.query("SELECT content FROM public.homepage_content WHERE id=1"));
@@ -384,6 +1044,93 @@ async function handleAdmin(request, env, url, origin) {
     return json({ responses }, 200, origin);
   }
 
+  // Private internal messaging: every endpoint is scoped to the authenticated active account.
+  if (url.pathname === "/api/admin/private-messages" && request.method === "GET") {
+    const withId = url.searchParams.get("with") || "";
+    const summaryOnly = url.searchParams.get("summary") === "1";
+    const result = await withDatabase(env, async db => {
+      const unread = await db.query(
+        "SELECT COUNT(*)::int AS count FROM public.private_messages WHERE recipient_id=$1 AND read_at IS NULL",
+        [admin.id]
+      );
+      if (summaryOnly) return { unreadCount: unread.rows[0].count, user: { id: admin.id, name: admin.name, email: admin.email }, contacts: [], messages: [] };
+      const contacts = await db.query(
+        `SELECT u.id, u.name, u.email,
+                CASE WHEN lower(u.email) IN (lower($2), lower($3)) THEN 'admin' ELSE COALESCE(a.role,'employee') END AS role
+         FROM neon_auth."user" u
+         LEFT JOIN public.site_user_access a ON a.user_id=u.id
+         WHERE u."emailVerified"=TRUE
+           AND (lower(u.email) IN (lower($2), lower($3)) OR a.status='active')
+           AND u.id<>$1
+         ORDER BY lower(COALESCE(NULLIF(u.name,''),u.email))`,
+        [admin.id, ADMIN_EMAIL, LEGACY_ADMIN_EMAIL]
+      );
+      let messages = [];
+      if (withId) {
+        if (!/^[0-9a-f-]{36}$/i.test(withId)) throw new Error("INVALID_RECIPIENT");
+        const thread = await db.query(
+          `SELECT id, sender_id, recipient_id, body, created_at, read_at
+           FROM public.private_messages
+           WHERE (sender_id=$1 AND recipient_id=$2) OR (sender_id=$2 AND recipient_id=$1)
+           ORDER BY created_at ASC LIMIT 300`,
+          [admin.id, withId]
+        );
+        messages = thread.rows;
+      }
+      return { unreadCount: unread.rows[0].count, contacts: contacts.rows, messages };
+    });
+    return json(result, 200, origin);
+  }
+
+  if (url.pathname === "/api/admin/private-messages" && request.method === "POST") {
+    let body;
+    try { body = await request.json(); } catch { return json({ error: "INVALID_JSON" }, 400, origin); }
+    const recipientId = String(body.recipient_id || "");
+    const messageBody = typeof body.body === "string" ? body.body.trim() : "";
+    if (!/^[0-9a-f-]{36}$/i.test(recipientId) || recipientId === admin.id ||
+        !messageBody || messageBody.length > 5000) {
+      return json({ error: "INVALID_MESSAGE_FIELDS" }, 400, origin);
+    }
+    const sent = await withDatabase(env, async db => {
+      const recipient = await db.query(
+        `SELECT u.id FROM neon_auth."user" u
+         LEFT JOIN public.site_user_access a ON a.user_id=u.id
+         WHERE u.id=$1 AND u."emailVerified"=TRUE
+           AND (lower(u.email) IN (lower($2), lower($3)) OR a.status='active') LIMIT 1`,
+        [recipientId, ADMIN_EMAIL, LEGACY_ADMIN_EMAIL]
+      );
+      if (!recipient.rows.length) return null;
+      const inserted = await db.query(
+        "INSERT INTO public.private_messages (sender_id,recipient_id,body) VALUES ($1,$2,$3) RETURNING id, sender_id, recipient_id, body, created_at, read_at",
+        [admin.id, recipientId, messageBody]
+      );
+      return inserted.rows[0];
+    });
+    if (!sent) return json({ error: "RECIPIENT_NOT_AVAILABLE" }, 404, origin);
+    return json({ message: sent }, 201, origin);
+  }
+
+  const privateDeleteMatch = url.pathname.match(/^\/api\/admin\/private-messages\/([0-9a-f-]{36})$/i);
+  if (privateDeleteMatch && request.method === "DELETE") {
+    if (!canAdminister) return json({ error: "ADMIN_REQUIRED" }, 403, origin);
+    const result = await withDatabase(env, db => db.query(
+      "DELETE FROM public.private_messages WHERE id=$1::uuid RETURNING id",
+      [privateDeleteMatch[1]]
+    ));
+    return result.rowCount
+      ? json({ ok: true, deletedId: result.rows[0].id }, 200, origin)
+      : json({ error: "MESSAGE_NOT_FOUND" }, 404, origin);
+  }
+
+  const privateReadMatch = url.pathname.match(/^\/api\/admin\/private-messages\/([0-9a-f-]{36})\/read$/i);
+  if (privateReadMatch && request.method === "POST") {
+    const result = await withDatabase(env, db => db.query(
+      "UPDATE public.private_messages SET read_at=NOW() WHERE id=$1::uuid AND recipient_id=$2 AND read_at IS NULL RETURNING id, read_at",
+      [privateReadMatch[1], admin.id]
+    ));
+    return json({ updated: result.rowCount, message: result.rows[0] || null }, 200, origin);
+  }
+
   if (url.pathname === "/api/admin/overview" && request.method === "GET") {
     const result = await withDatabase(env, db => db.query(
       `SELECT
@@ -395,7 +1142,7 @@ async function handleAdmin(request, env, url, origin) {
         (SELECT COUNT(*)::int FROM public.contact_messages WHERE status='in_progress') AS messages_in_progress,
         (SELECT COUNT(*)::int FROM public.contact_messages WHERE status='resolved') AS messages_resolved`
     ));
-    return json({ overview: result.rows[0] }, 200, origin);
+    return json({ overview: result.rows[0], user: { id: admin.id, name: admin.name, email: admin.email, role: admin.role } }, 200, origin);
   }
 
   if (url.pathname === "/api/admin/messages" && request.method === "GET") {
@@ -407,7 +1154,7 @@ async function handleAdmin(request, env, url, origin) {
 
   const messageMatch = url.pathname.match(/^\/api\/admin\/messages\/(\d+)$/);
   if (messageMatch && request.method === "DELETE") {
-    if (admin.email.toLowerCase() !== ADMIN_EMAIL) return json({ error: "SUPER_ADMIN_REQUIRED" }, 403, origin);
+    if (!isAdmin || admin.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) return json({ error: "SUPER_ADMIN_REQUIRED" }, 403, origin);
     const result = await withDatabase(env, db => db.query(
       "DELETE FROM public.contact_messages WHERE id=$1::bigint RETURNING id",
       [Number(messageMatch[1])]
@@ -497,6 +1244,8 @@ export default {
     if (url.pathname.startsWith("/api/") && origin && !allowedOrigins.has(origin)) {
       return new Response(null, { status: 403 });
     }
+
+    if (url.pathname === "/api/webhooks/neon-auth") return handleNeonAuthWebhook(request, env);
 
     if (request.method === "OPTIONS" && url.pathname.startsWith("/api/")) {
       return new Response(null, {
@@ -645,6 +1394,8 @@ export default {
       }
     }
 
+    if (url.pathname === "/api/newsletter/subscribe" && request.method === "POST") return handleNewsletterSubscribe(request, env);
+
     if (url.pathname === "/api/contact" && request.method === "POST") return handleContact(request, env);
 
     if (url.pathname === "/api/survey" && request.method === "POST") return handleSurvey(request, env);
@@ -654,6 +1405,36 @@ export default {
     if (url.pathname === "/admin/questionnaire" && request.method === "GET") {
       if (!await requireSurveyAdmin(request)) return new Response("Accès réservé à l’administrateur.", { status: 403 });
       return new Response(dashboardHtml(), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-robots-tag": "noindex, nofollow" } });
+    }
+
+
+    if(url.pathname==="/newsletter/desinscription"&&(request.method==="GET"||request.method==="POST")){
+      const token=url.searchParams.get("token")||"";
+      const validToken=/^[0-9a-f-]{36}$/i.test(token);
+      const headers={"content-type":"text/html; charset=utf-8","cache-control":"no-store","x-content-type-options":"nosniff"};
+      if(request.method==="GET"){
+        const message=validToken
+          ? "Pour confirmer votre désinscription de la newsletter FO Free Distribution, cliquez sur le bouton ci-dessous."
+          : "Ce lien de désinscription est invalide ou expiré.";
+        const action=validToken
+          ? '<form method="post" action="/newsletter/desinscription?token='+encodeURIComponent(token)+'"><input type="hidden" name="confirm" value="1"><button type="submit">Confirmer ma désinscription</button></form>'
+          : "";
+        return new Response('<!doctype html><html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Désinscription</title><body style="font:16px Arial;max-width:620px;margin:12vh auto;padding:24px"><h1>FO Free Distribution</h1><p>'+message+'</p>'+action+'<p><a href="https://fd.focom-iliad.fr/">Retour au site</a></p></body></html>',{headers});
+      }
+      if(!validToken) return new Response("Lien de désinscription invalide ou expiré.",{status:400,headers});
+      const postBody=await request.text();
+      const contentType=request.headers.get("content-type")||"";
+      const oneClick=contentType.toLowerCase().includes("application/x-www-form-urlencoded")&&postBody==="List-Unsubscribe=One-Click";
+      const manualConfirm=new URLSearchParams(postBody).get("confirm")==="1";
+      if(!oneClick&&!manualConfirm)return new Response("Confirmation de désinscription invalide.",{status:400,headers});
+      try{
+        const r=await withDatabase(env,db=>db.query("UPDATE public.newsletter_subscribers SET status='unsubscribed',unsubscribed_at=NOW() WHERE unsubscribe_token=$1::uuid AND status='subscribed' RETURNING email",[token]));
+        const message=r.rowCount?"Votre désinscription a bien été prise en compte.":"Cette adresse était déjà désinscrite ou le lien est expiré.";
+        return new Response('<!doctype html><html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Désinscription confirmée</title><body style="font:16px Arial;max-width:620px;margin:12vh auto;padding:24px"><h1>FO Free Distribution</h1><p>'+message+'</p><a href="https://fd.focom-iliad.fr/">Retour au site</a></body></html>',{headers});
+      }catch(e){
+        console.error("Newsletter unsubscribe:",e?.code||e?.name||"unknown");
+        return new Response("La désinscription n'a pas pu être enregistrée. Merci de réessayer.",{status:503,headers});
+      }
     }
 
     if (url.pathname.startsWith("/api/admin/")) {
