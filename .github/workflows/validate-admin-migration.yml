@@ -41,3 +41,17 @@ jobs:
         run: npx wrangler deploy --dry-run --config wrangler.preview.jsonc
       - name: Check Worker syntax
         run: node --check src/worker.js
+      - name: Verify preview authentication and webhook guards
+        run: |
+          node --input-type=module <<'NODE'
+          const base = "https://fd-preview.linux92fr.workers.dev";
+          const admin = await fetch(base + "/api/admin/users");
+          if (admin.status !== 401) throw new Error("Expected unauthenticated admin request to return 401, got " + admin.status);
+          const webhook = await fetch(base + "/api/webhooks/neon-auth", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ event_type: "send.otp", event_id: "ci-unsigned-webhook-check" })
+          });
+          if (webhook.status !== 401) throw new Error("Expected unsigned Neon webhook to return 401, got " + webhook.status);
+          console.log("Preview guards passed: unauthenticated admin denied; unsigned webhook rejected.");
+          NODE
