@@ -21,6 +21,9 @@
     "wrangler": "^4.163.0"
   },
   "overrides": {
-    "rollup": "4.68.4"
+    "rollup": "4.68.4",
+    "better-auth": "1.7.16",
+    "@better-auth/drizzle-adapter": "1.7.16",
+    "zod": "4.6.7"
   }
 }
