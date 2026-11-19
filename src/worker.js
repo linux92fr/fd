@@ -609,6 +609,7 @@ async function handleAdmin(request, env, url, origin) {
   const admin = access.user;
   const isAdmin = admin.role === "admin";
   const isAdminDelegate = admin.role === "admin_delegate";
+  const isSuperAdmin = admin.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
   const canAdminister = isAdmin || isAdminDelegate;
   if (url.pathname === "/api/admin/account-email-preview" && request.method === "GET") {
     if (!isAdmin) return json({ error: "SUPER_ADMIN_REQUIRED" }, 403, origin);
@@ -726,7 +727,7 @@ async function handleAdmin(request, env, url, origin) {
        AND ($2::boolean OR lower(u.email) <> lower($1))
        ORDER BY u."createdAt" DESC LIMIT 500`, [ADMIN_EMAIL, !isAdminDelegate]
     ));
-    return json({ users: r.rows, canAssignDelegate: isAdmin }, 200, origin);
+    return json({ users: r.rows, canAssignDelegate: isSuperAdmin }, 200, origin);
   }
   const userId = url.pathname.startsWith("/api/admin/users/") ? url.pathname.slice("/api/admin/users/".length) : "";
   if (/^[0-9a-f-]{36}$/i.test(userId) && request.method === "PATCH") {
@@ -736,13 +737,14 @@ async function handleAdmin(request, env, url, origin) {
     if (!["admin", "admin_delegate", "editor", "employee"].includes(role) || !["pending", "active", "suspended"].includes(status)) return json({ error: "INVALID_ROLE_OR_STATUS" }, 400, origin);
     const result = await withDatabase(env, async db => {
       const target = await db.query(
-        `SELECT u.id, u.email, u.name, COALESCE(a.status, 'pending') AS previous_status
+        `SELECT u.id, u.email, u.name, COALESCE(a.status, 'pending') AS previous_status,
+                COALESCE(a.role, CASE WHEN lower(u.email)=lower($2) THEN 'admin' ELSE 'employee' END) AS previous_role
          FROM neon_auth."user" u LEFT JOIN public.site_user_access a ON a.user_id = u.id
-         WHERE u.id = $1`, [userId]
+         WHERE u.id = $1`, [userId, ADMIN_EMAIL]
       );
       if (!target.rows[0]) return { missing: true };
       if (target.rows[0].email.toLowerCase() === ADMIN_EMAIL.toLowerCase() && (role !== "admin" || status !== "active")) return { protected: true };
-      if (isAdminDelegate && (role === "admin" || role === "admin_delegate")) return { forbiddenTarget: true };
+      if (isAdminDelegate && (role === "admin" || role === "admin_delegate" || target.rows[0].previous_role === "admin" || target.rows[0].previous_role === "admin_delegate")) return { forbiddenTarget: true };
       if (userId === admin.id && (role !== "admin" || status !== "active")) return { selfProtected: true };
       await db.query(
         `INSERT INTO public.site_user_access (user_id, role, status, approved_by, approved_at, updated_at)
