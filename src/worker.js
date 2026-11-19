@@ -959,6 +959,81 @@ async function handleAdmin(request, env, url, origin) {
     return json({ responses }, 200, origin);
   }
 
+  // Private internal messaging: every endpoint is scoped to the authenticated active account.
+  if (url.pathname === "/api/admin/private-messages" && request.method === "GET") {
+    const withId = url.searchParams.get("with") || "";
+    const summaryOnly = url.searchParams.get("summary") === "1";
+    const result = await withDatabase(env, async db => {
+      const unread = await db.query(
+        "SELECT COUNT(*)::int AS count FROM public.private_messages WHERE recipient_id=$1 AND read_at IS NULL",
+        [admin.id]
+      );
+      if (summaryOnly) return { unreadCount: unread.rows[0].count, contacts: [], messages: [] };
+      const contacts = await db.query(
+        `SELECT u.id, u.name, u.email,
+                CASE WHEN lower(u.email)=lower($2) THEN 'admin' ELSE COALESCE(a.role,'employee') END AS role
+         FROM neon_auth."user" u
+         LEFT JOIN public.site_user_access a ON a.user_id=u.id
+         WHERE u."emailVerified"=TRUE
+           AND (lower(u.email)=lower($2) OR a.status='active')
+           AND u.id<>$1
+         ORDER BY lower(COALESCE(NULLIF(u.name,''),u.email))`,
+        [admin.id, ADMIN_EMAIL]
+      );
+      let messages = [];
+      if (withId) {
+        if (!/^[0-9a-f-]{36}$/i.test(withId)) throw new Error("INVALID_RECIPIENT");
+        const thread = await db.query(
+          `SELECT id, sender_id, recipient_id, body, created_at, read_at
+           FROM public.private_messages
+           WHERE (sender_id=$1 AND recipient_id=$2) OR (sender_id=$2 AND recipient_id=$1)
+           ORDER BY created_at ASC LIMIT 300`,
+          [admin.id, withId]
+        );
+        messages = thread.rows;
+      }
+      return { unreadCount: unread.rows[0].count, contacts: contacts.rows, messages };
+    });
+    return json(result, 200, origin);
+  }
+
+  if (url.pathname === "/api/admin/private-messages" && request.method === "POST") {
+    let body;
+    try { body = await request.json(); } catch { return json({ error: "INVALID_JSON" }, 400, origin); }
+    const recipientId = String(body.recipient_id || "");
+    const messageBody = typeof body.body === "string" ? body.body.trim() : "";
+    if (!/^[0-9a-f-]{36}$/i.test(recipientId) || recipientId === admin.id ||
+        !messageBody || messageBody.length > 5000) {
+      return json({ error: "INVALID_MESSAGE_FIELDS" }, 400, origin);
+    }
+    const sent = await withDatabase(env, async db => {
+      const recipient = await db.query(
+        `SELECT u.id FROM neon_auth."user" u
+         LEFT JOIN public.site_user_access a ON a.user_id=u.id
+         WHERE u.id=$1 AND u."emailVerified"=TRUE
+           AND (lower(u.email)=lower($2) OR a.status='active') LIMIT 1`,
+        [recipientId, ADMIN_EMAIL]
+      );
+      if (!recipient.rows.length) return null;
+      const inserted = await db.query(
+        "INSERT INTO public.private_messages (sender_id,recipient_id,body) VALUES ($1,$2,$3) RETURNING id, sender_id, recipient_id, body, created_at, read_at",
+        [admin.id, recipientId, messageBody]
+      );
+      return inserted.rows[0];
+    });
+    if (!sent) return json({ error: "RECIPIENT_NOT_AVAILABLE" }, 404, origin);
+    return json({ message: sent }, 201, origin);
+  }
+
+  const privateReadMatch = url.pathname.match(/^\\/api\\/admin\\/private-messages\\/([0-9a-f-]{36})\\/read$/i);
+  if (privateReadMatch && request.method === "POST") {
+    const result = await withDatabase(env, db => db.query(
+      "UPDATE public.private_messages SET read_at=NOW() WHERE id=$1::uuid AND recipient_id=$2 AND read_at IS NULL RETURNING id, read_at",
+      [privateReadMatch[1], admin.id]
+    ));
+    return json({ updated: result.rowCount, message: result.rows[0] || null }, 200, origin);
+  }
+
   if (url.pathname === "/api/admin/overview" && request.method === "GET") {
     const result = await withDatabase(env, db => db.query(
       `SELECT
