@@ -45,10 +45,23 @@ function renderAccountTools(tools, unreadCount) {
       <span class="public-session-copy"><strong>${escapeHtml(currentUser.name || 'Mon compte')}</strong></span>
     </span>
     <button class="public-notification-button" type="button" aria-label="Ouvrir la messagerie" title="Messagerie interne">
-      <span aria-hidden="true">🔔</span><span class="public-notification-count" ${unreadCount ? '' : 'hidden'}>${unreadCount}</span>
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></path></svg>
+      <span class="public-notification-count" ${unreadCount ? '' : 'hidden'}>${unreadCount}</span>
     </button>
+    <button class="public-logout-button" type="button">Déconnexion</button>
   `;
-  tools.querySelector('button').addEventListener('click', openMessaging);
+  tools.querySelector('.public-notification-button').addEventListener('click', openMessaging);
+  tools.querySelector('.public-logout-button').addEventListener('click', async event => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      await auth.signOut();
+    } finally {
+      sessionToken = null;
+      currentUser = null;
+      location.reload();
+    }
+  });
 }
 
 async function openMessaging() {
