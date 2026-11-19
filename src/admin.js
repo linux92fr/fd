@@ -267,7 +267,7 @@ async function dashboard() {
   try {
     const { overview = {}, user = {} } = await call('/api/admin/overview');
     currentAdmin = user;
-    frame('<div class="admin-title-row"><div><span class="eyebrow">Espace sécurisé FO</span><h1>Tableau de bord</h1><p>Vue d’ensemble de l’activité du site et accès rapide aux outils de gestion.</p></div><button id="logout" class="button button-outline-dark">Déconnexion</button></div><section class="admin-panel"><div class="admin-toolbar"><h2>Vue d’ensemble</h2><button id="refresh-overview" class="button button-outline-dark">Actualiser</button></div><div class="admin-stats-grid"><article class="admin-stat"><span>Articles</span><strong>' + Number(overview.articles_total || 0) + '</strong><small>' + Number(overview.articles_published || 0) + ' publiés · ' + Number(overview.articles_draft || 0) + ' brouillons</small></article>' + (['admin','admin_delegate'].includes(user.role) ? '<article class="admin-stat"><span>Messages reçus</span><strong>' + Number(overview.messages_total || 0) + '</strong><small>' + Number(overview.messages_new || 0) + ' nouveaux · ' + Number(overview.messages_in_progress || 0) + ' en cours</small></article><article class="admin-stat"><span>Messages traités</span><strong>' + Number(overview.messages_resolved || 0) + '</strong><small>Demandes marquées comme traitées</small></article>' : '') + '</div></section><section class="admin-panel"><div class="admin-toolbar"><h2>Accès rapides</h2></div><div class="admin-quick-links"><button id="open-articles" class="button button-red">Gérer les articles</button>' + (['admin','admin_delegate'].includes(user.role) ? '<button id="open-messages" class="button button-outline-dark">Messages reçus</button><button id="open-survey" class="button button-outline-dark">Bilan du questionnaire</button><button id="open-media" class="button button-outline-dark">Médiathèque</button><button id="open-homepage" class="button button-outline-dark">Page d’accueil</button><button id="open-newsletter" class="button button-outline-dark">Newsletter</button><button id="open-users" class="button button-outline-dark">Utilisateurs et rôles</button><button id="open-account-emails" class="button button-outline-dark">Prévisualiser les e-mails de compte</button>' : '') + '</div><p class="admin-help">Le bilan du questionnaire reste dans son espace sécurisé dédié. Les médias et les autres réglages seront ajoutés progressivement.</p></section>');
+    frame('<div class="admin-title-row"><div><span class="eyebrow">Espace sécurisé FO</span><h1>Tableau de bord</h1><p>Vue d’ensemble de l’activité du site et accès rapide aux outils de gestion.</p></div><button id="logout" class="button button-outline-dark">Déconnexion</button></div><section class="admin-panel"><div class="admin-toolbar"><h2>Vue d’ensemble</h2><button id="refresh-overview" class="button button-outline-dark">Actualiser</button></div><div class="admin-stats-grid"><article class="admin-stat"><span>Articles</span><strong>' + Number(overview.articles_total || 0) + '</strong><small>' + Number(overview.articles_published || 0) + ' publiés · ' + Number(overview.articles_draft || 0) + ' brouillons</small></article>' + (['admin','admin_delegate'].includes(user.role) ? '<article class="admin-stat"><span>Messages reçus</span><strong>' + Number(overview.messages_total || 0) + '</strong><small>' + Number(overview.messages_new || 0) + ' nouveaux · ' + Number(overview.messages_in_progress || 0) + ' en cours</small></article><article class="admin-stat"><span>Messages traités</span><strong>' + Number(overview.messages_resolved || 0) + '</strong><small>Demandes marquées comme traitées</small></article>' : '') + '</div></section><section class="admin-panel"><div class="admin-toolbar"><h2>Accès rapides</h2></div><div class="admin-quick-links"><button id="open-articles" class="button button-red">Gérer les articles</button><button id="open-private-messages" class="button button-outline-dark">Messagerie interne</button>' + (['admin','admin_delegate'].includes(user.role) ? '<button id="open-messages" class="button button-outline-dark">Messages reçus</button><button id="open-survey" class="button button-outline-dark">Bilan du questionnaire</button><button id="open-media" class="button button-outline-dark">Médiathèque</button><button id="open-homepage" class="button button-outline-dark">Page d’accueil</button><button id="open-newsletter" class="button button-outline-dark">Newsletter</button><button id="open-users" class="button button-outline-dark">Utilisateurs et rôles</button><button id="open-account-emails" class="button button-outline-dark">Prévisualiser les e-mails de compte</button>' : '') + '</div><p class="admin-help">Le bilan du questionnaire reste dans son espace sécurisé dédié. Les médias et les autres réglages seront ajoutés progressivement.</p></section>');
     root.querySelector('#logout').onclick = async () => { await auth.signOut(); currentAdmin = null; login('Vous êtes déconnecté.'); };
     root.querySelector('#refresh-overview').onclick = () => dashboard();
     root.querySelector('#open-articles').onclick = () => articlesPage();
@@ -278,6 +278,7 @@ async function dashboard() {
     if (root.querySelector('#open-newsletter')) root.querySelector('#open-newsletter').onclick = () => newsletterPage({ call, frame, root, dashboard });
     if (root.querySelector('#open-users')) root.querySelector('#open-users').onclick = () => usersPage();
     if (root.querySelector('#open-account-emails')) root.querySelector('#open-account-emails').onclick = () => accountEmailsPage();
+    if (root.querySelector('#open-private-messages')) root.querySelector('#open-private-messages').onclick = () => privateMessagesPage();
   } catch (err) { login('Impossible de charger le tableau de bord : ' + (err.message || 'ERREUR_INCONNUE') + '.'); }
 }
 async function surveyPage() {
@@ -534,6 +535,49 @@ async function messages() {
     });
   } catch (err) { login('Impossible de charger les messages : ' + (err.message || 'ERREUR_INCONNUE') + '.'); }
 }
+async function privateMessagesPage(selectedId = '') {
+  try {
+    const data = await call('/api/admin/private-messages' + (selectedId ? '?with=' + encodeURIComponent(selectedId) : ''));
+    const contacts = data.contacts || [];
+    const selected = contacts.find(contact => contact.id === selectedId) || contacts[0] || null;
+    const messages = selected ? (selectedId ? data.messages : (await call('/api/admin/private-messages?with=' + encodeURIComponent(selected.id))).messages || []) : [];
+    for (const message of messages) {
+      if (message.recipient_id === currentAdmin?.id && !message.read_at) {
+        await call('/api/admin/private-messages/' + encodeURIComponent(message.id) + '/read', { method: 'POST' });
+      }
+    }
+    const options = contacts.map(contact => '<option value="' + esc(contact.id) + '"' + (selected && contact.id === selected.id ? ' selected' : '') + '>' + esc(contact.name || contact.email) + ' — ' + esc(contact.email) + '</option>').join('');
+    const thread = messages.map(message => {
+      const mine = message.sender_id === currentAdmin?.id;
+      return '<article class="private-message ' + (mine ? 'is-mine' : 'is-theirs') + '"><p>' + esc(message.body) + '</p><small>' + (mine ? 'Vous' : esc(selected?.name || selected?.email || 'Correspondant')) + ' · ' + esc(new Date(message.created_at).toLocaleString('fr-FR')) + '</small></article>';
+    }).join('') || '<p class="admin-help">Aucun message dans cette conversation. Vous pouvez commencer à écrire.</p>';
+    frame('<div class="admin-title-row"><div><span class="eyebrow">Échanges internes</span><h1>Messagerie</h1><p>Échangez en privé avec les autres comptes actifs du site.</p></div><button id="logout" class="button button-outline-dark">Déconnexion</button></div><section class="admin-panel"><div class="admin-toolbar"><h2>Nouvelle conversation</h2><button id="back-dashboard" class="button button-outline-dark">← Tableau de bord</button></div><label>Destinataire<select id="private-recipient"><option value="">Choisir un destinataire</option>' + options + '</select></label><div id="private-thread" class="private-thread">' + thread + '</div>' + (selected ? '<form id="private-send" class="admin-form-grid"><label>Votre message<textarea name="body" rows="3" maxlength="5000" required placeholder="Écrivez votre message…"></textarea></label><div class="admin-form-actions"><button class="button button-red" type="submit">Envoyer</button></div></form>' : '<p class="admin-help">Aucun autre compte actif n’est disponible pour le moment.</p>') + '<p id="private-status" class="admin-message" role="status"></p></section>');
+    root.querySelector('#logout').onclick = async () => { await auth.signOut(); currentAdmin = null; login('Vous êtes déconnecté.'); };
+    root.querySelector('#back-dashboard').onclick = () => dashboard();
+    root.querySelector('#private-recipient').onchange = event => privateMessagesPage(event.target.value);
+    const form = root.querySelector('#private-send');
+    if (form) form.addEventListener('submit', async event => {
+      event.preventDefault();
+      const button = form.querySelector('button[type="submit"]');
+      const body = form.elements.body.value.trim();
+      if (!body) return;
+      button.disabled = true;
+      try {
+        await call('/api/admin/private-messages', { method: 'POST', body: JSON.stringify({ recipient_id: selected.id, body }) });
+        await privateMessagesPage(selected.id);
+      } catch (error) {
+        root.querySelector('#private-status').textContent = 'Envoi impossible : ' + error.message;
+        button.disabled = false;
+      }
+    });
+    const threadNode = root.querySelector('#private-thread');
+    if (threadNode) threadNode.scrollTop = threadNode.scrollHeight;
+  } catch (error) {
+    frame('<section class="admin-panel"><h1>Messagerie indisponible</h1><p>' + esc(error.message) + '</p><button id="back-dashboard" class="button button-outline-dark">← Retour</button></section>');
+    root.querySelector('#back-dashboard').onclick = () => dashboard();
+  }
+}
+
 function editor(a = {}) {
   const el = root.querySelector('#editor'); el.hidden = false;
   el.innerHTML = '<div class="admin-toolbar"><h2>' + (a.id ? 'Modifier' : 'Nouvel') + ' article</h2><button id="close" class="text-button">Fermer</button></div><form id="article-form" class="article-form"><input type="hidden" name="id" value="' + esc(a.id || '') + '"><label>Titre<input name="title" maxlength="180" required value="' + esc(a.title || '') + '"></label><label>Slug<input name="slug" maxlength="180" value="' + esc(a.slug || '') + '"></label><label>Catégorie<input name="category" maxlength="80" value="' + esc(a.category || 'Actualités') + '"></label><label>Résumé<textarea name="excerpt" maxlength="320" rows="2">' + esc(a.excerpt || '') + '</textarea></label><label>Contenu<div class="article-format-toolbar" aria-label="Mise en forme du contenu"><button type="button" data-format="**|**" title="Gras"><strong>G</strong></button><button type="button" data-format="*|*" title="Italique"><em>I</em></button><button type="button" data-prefix="## " title="Titre">Titre</button><button type="button" data-prefix="- " title="Liste à puces">• Liste</button><button type="button" data-prefix="1. " title="Liste numérotée">1. Liste</button><button type="button" data-prefix="> " title="Citation">Citation</button><span>Raccourcis : **gras**, *italique*, ## titre, - liste, [lien](https://…)</span></div><textarea name="content" rows="14" required>' + esc(a.content || '') + '</textarea></label><label>Image (URL HTTPS)<input name="cover_image_url" type="url" value="' + esc(a.cover_image_url || '') + '"></label><button type="button" id="choose-media" class="button button-outline-dark">Choisir dans la médiathèque</button><div class="admin-form-actions"><button type="button" id="preview-toggle" class="button button-outline-dark">Aperçu de l’article</button><button class="button button-outline-dark" name="status" value="draft">Enregistrer le brouillon</button><button class="button button-red" name="status" value="published">Publier</button>' + (a.id ? '<button type="button" id="archive" class="text-button">Archiver</button>' : '') + '</div><p class="admin-message" role="status"></p></form><section id="article-preview" class="article-preview" hidden aria-live="polite"><div class="preview-heading"><span class="eyebrow">Prévisualisation · non publiée</span><span class="preview-status">Visible uniquement ici</span></div><article class="preview-article"><img class="preview-cover" alt="" hidden><span class="preview-category"></span><h1 class="preview-title"></h1><p class="preview-excerpt"></p><div class="preview-content"></div></article></section>';
