@@ -34,7 +34,7 @@ jobs:
         with:
           node-version: 22
       - name: Install dependencies
-        run: npm install
+        run: npm ci
       - name: Build preview assets
         run: npm run build:preview
       - name: Deploy preview Worker and assets
