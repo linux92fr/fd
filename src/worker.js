@@ -30,6 +30,49 @@ const SURVEY_ACCESS_AUDIENCE = "e58983dc65cd10dd66fdb66e69e85c1e099f2427f9de1e8f
 const SURVEY_ACCESS_JWKS = createRemoteJWKSet(new URL(SURVEY_ACCESS_ISSUER + "/cdn-cgi/access/certs"));
 const SURVEY_ADMIN_EMAILS = new Set([ADMIN_EMAIL, LEGACY_ADMIN_EMAIL]);
 
+const SITE_CONTENT_KEYS = new Set(["claims", "rights", "section_order"]);
+const SITE_SECTION_ORDER = ["intro", "news", "claims", "rights", "survey", "contact"];
+const SURVEY_CONFIG_DEFAULT = {
+  conditions:"Comment évaluez-vous globalement vos conditions de travail ?",
+  priorities:"Quels sujets devraient être prioritaires ?",
+  recognition:"Vous sentez-vous reconnu(e) pour le travail que vous accomplissez ?",
+  comment:"Quelle amélioration vous paraît la plus urgente ?",
+  priorityOptions:[
+    {value:"salary",label:"Salaires et pouvoir d'achat"},{value:"commissions",label:"Primes et commissions"},
+    {value:"staffing",label:"Effectifs et moyens en boutique"},{value:"schedules",label:"Horaires et équilibre vie professionnelle / personnelle"},
+    {value:"workload",label:"Charge et organisation du travail"},{value:"training",label:"Formation"},
+    {value:"career",label:"Évolution professionnelle"},{value:"management",label:"Management et communication"},
+    {value:"health",label:"Santé, sécurité et conditions de travail"},{value:"recognition",label:"Reconnaissance du travail"},
+    {value:"other",label:"Autre sujet"}
+  ]
+};
+function validateSiteContent(key,value){
+  const short=(v,max=240)=>typeof v==="string"&&v.length<=max;
+  if(!SITE_CONTENT_KEYS.has(key)||!value||typeof value!=="object"||Array.isArray(value))return false;
+  if(key==="section_order")return Array.isArray(value.order)&&value.order.length===SITE_SECTION_ORDER.length&&value.order.every((v,i,a)=>SITE_SECTION_ORDER.includes(v)&&a.indexOf(v)===i);
+  if(!short(value.eyebrow,180)||!short(value.title,180)||!short(value.lead,2000))return false;
+  if(key==="claims")return Array.isArray(value.items)&&value.items.length>=1&&value.items.length<=20&&value.items.every(x=>x&&short(x.icon,8)&&short(x.number,80)&&short(x.title,180)&&Array.isArray(x.bullets)&&x.bullets.length<=12&&x.bullets.every(v=>short(v,500)))&&short(value.commitmentTitle,180)&&short(value.commitmentText,2000)&&short(value.disclaimer,2000);
+  return Array.isArray(value.topics)&&value.topics.length>=1&&value.topics.length<=20&&value.topics.every(x=>x&&short(x.icon,8)&&short(x.number,80)&&short(x.title,180))&&short(value.contactTitle,180)&&short(value.contactText,1000);
+}
+function validateSurveyConfig(value){
+  const allowed=new Set(SURVEY_CONFIG_DEFAULT.priorityOptions.map(x=>x.value));
+  return value&&typeof value==="object"&&!Array.isArray(value)&&["conditions","priorities","recognition","comment"].every(k=>typeof value[k]==="string"&&value[k].trim()&&value[k].length<=300)&&Array.isArray(value.priorityOptions)&&value.priorityOptions.length===allowed.size&&value.priorityOptions.every(x=>x&&allowed.has(x.value)&&typeof x.label==="string"&&x.label.trim()&&x.label.length<=180)&&new Set(value.priorityOptions.map(x=>x.value)).size===allowed.size;
+}
+async function publicSiteContent(env){
+  if(!env.SURVEYS_DB)return{claims:null,rights:null,section_order:null};
+  const result=await env.SURVEYS_DB.prepare("SELECT content_key,content_json FROM site_content WHERE content_key IN ('claims:published','rights:published','section_order:published') AND status='published'").all();
+  const data={claims:null,rights:null,section_order:null};
+  for(const row of result.results||[]){const key=row.content_key.split(":")[0];try{data[key]=JSON.parse(row.content_json)}catch{}}
+  return data;
+}
+async function publicSurveyConfig(env){
+  if(!env.SURVEYS_DB)return SURVEY_CONFIG_DEFAULT;
+  const row=await env.SURVEYS_DB.prepare("SELECT config_json FROM survey_configuration WHERE id=1").first();
+  if(!row?.config_json)return SURVEY_CONFIG_DEFAULT;
+  try{const value=JSON.parse(row.config_json);return validateSurveyConfig(value)?value:SURVEY_CONFIG_DEFAULT}catch{return SURVEY_CONFIG_DEFAULT}
+}
+
+
 function json(data, status = 200, origin = "") {
   const headers = {
     "content-type": "application/json; charset=utf-8",
@@ -707,6 +750,41 @@ async function handleAdmin(request, env, url, origin) {
   const isAdminDelegate = admin.role === "admin_delegate";
   const isSuperAdmin = admin.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
   const canAdminister = isAdmin || isAdminDelegate;
+
+  if(url.pathname==="/api/admin/site-content"&&request.method==="GET"){
+    const rows=await env.SURVEYS_DB.prepare("SELECT content_key,content_json,status,updated_at FROM site_content WHERE content_key IN ('claims:draft','rights:draft','section_order:draft','claims:published','rights:published','section_order:published')").all();
+    const content={};for(const row of rows.results||[]){const [key,state]=row.content_key.split(":");try{content[key]||={};content[key][state]=JSON.parse(row.content_json)}catch{}}
+    return json({content,permissions:{canPublish:canAdminister}},200,origin);
+  }
+  if(url.pathname==="/api/admin/site-content"&&request.method==="POST"){
+    let body;try{body=await request.json()}catch{return json({error:"INVALID_JSON"},400,origin)}
+    const key=String(body.key||"");if(!validateSiteContent(key,body.content))return json({error:"INVALID_SITE_CONTENT"},400,origin);
+    if(key==="section_order"&&!canAdminister)return json({error:"ADMIN_REQUIRED"},403,origin);
+    if(body.action==="publish"&&!canAdminister)return json({error:"PUBLISH_PERMISSION_REQUIRED"},403,origin);
+    const encoded=JSON.stringify(body.content);if(encoded.length>60000)return json({error:"CONTENT_TOO_LARGE"},413,origin);
+    const save=async(state)=>env.SURVEYS_DB.prepare("INSERT INTO site_content(content_key,content_json,status,updated_by) VALUES(?,?,?,?) ON CONFLICT(content_key) DO UPDATE SET content_json=excluded.content_json,status=excluded.status,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),updated_by=excluded.updated_by").bind(key+":"+state,encoded,state,admin.id).run();
+    if(body.action==="publish"){await save("draft");await save("published");return json({ok:true,published:true},200,origin)}
+    await save("draft");return json({ok:true,draft:true},200,origin);
+  }
+  if(url.pathname==="/api/admin/survey-config"&&request.method==="GET"){
+    if(!canAdminister)return json({error:"ADMIN_REQUIRED"},403,origin);
+    const row=await env.SURVEYS_DB.prepare("SELECT config_json,draft_json,version FROM survey_configuration WHERE id=1").first();
+    let published=SURVEY_CONFIG_DEFAULT,draft=null;try{if(row?.config_json)published=JSON.parse(row.config_json)}catch{}try{if(row?.draft_json)draft=JSON.parse(row.draft_json)}catch{}
+    return json({published,draft,version:Number(row?.version||1)},200,origin);
+  }
+  if(url.pathname==="/api/admin/survey-config"&&request.method==="POST"){
+    if(!canAdminister)return json({error:"ADMIN_REQUIRED"},403,origin);
+    let body;try{body=await request.json()}catch{return json({error:"INVALID_JSON"},400,origin)}
+    if(!validateSurveyConfig(body.config))return json({error:"INVALID_SURVEY_CONFIG"},400,origin);
+    const encoded=JSON.stringify(body.config);if(encoded.length>20000)return json({error:"CONFIG_TOO_LARGE"},413,origin);
+    if(body.action==="publish"){
+      await env.SURVEYS_DB.prepare("INSERT INTO survey_configuration(id,config_json,draft_json,version,updated_by) VALUES(1,?,NULL,1,?) ON CONFLICT(id) DO UPDATE SET config_json=excluded.config_json,draft_json=NULL,version=survey_configuration.version+1,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),updated_by=excluded.updated_by").bind(encoded,admin.id).run();
+      return json({ok:true,published:true},200,origin);
+    }
+    await env.SURVEYS_DB.prepare("INSERT INTO survey_configuration(id,config_json,draft_json,version,updated_by) VALUES(1,?,?,1,?) ON CONFLICT(id) DO UPDATE SET draft_json=excluded.draft_json,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),updated_by=excluded.updated_by").bind(JSON.stringify(SURVEY_CONFIG_DEFAULT),encoded,admin.id).run();
+    return json({ok:true,draft:true},200,origin);
+  }
+
   if (url.pathname === "/api/admin/account-email-preview" && request.method === "GET") {
     if (!isAdmin) return json({ error: "SUPER_ADMIN_REQUIRED" }, 403, origin);
     const type = url.searchParams.get("type") || "";
@@ -717,7 +795,7 @@ async function handleAdmin(request, env, url, origin) {
   }
   const isEditor = admin.role === "editor";
   const messagingAllowed = url.pathname === "/api/admin/private-messages" || /^\/api\/admin\/private-messages\/[0-9a-f-]{36}(?:\/read)?$/i.test(url.pathname);
-  const editorAllowed = url.pathname === "/api/admin/articles" || url.pathname === "/api/admin/overview" || messagingAllowed || /^\/api\/admin\/articles\/\d+$/.test(url.pathname);
+  const editorAllowed = url.pathname === "/api/admin/articles" || url.pathname === "/api/admin/overview" || messagingAllowed || url.pathname === "/api/admin/site-content" || /^\/api\/admin\/articles\/\d+$/.test(url.pathname);
   if ((admin.role === "employee" && !messagingAllowed && url.pathname !== "/api/admin/overview") || (isEditor && !editorAllowed)) return json({ error: "INSUFFICIENT_PERMISSIONS" }, 403, origin);
 
 
@@ -1389,6 +1467,12 @@ export default {
       }
     }
 
+    if (url.pathname === "/api/site-content" && request.method === "GET") {
+      try{return json({content:await publicSiteContent(env)},200,origin)}catch(error){console.error("Public site content unavailable:",error?.message||"unknown");return json({content:{claims:null,rights:null,section_order:null}},200,origin)}
+    }
+    if (url.pathname === "/api/survey/config" && request.method === "GET") {
+      try{return json({config:await publicSurveyConfig(env)},200,origin)}catch(error){console.error("Public survey config unavailable:",error?.message||"unknown");return json({config:SURVEY_CONFIG_DEFAULT},200,origin)}
+    }
     if (url.pathname === "/api/homepage" && request.method === "GET") {
       try {
         const result = await withDatabase(env, db => db.query("SELECT content FROM public.homepage_content WHERE id=1"));
