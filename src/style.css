@@ -880,3 +880,43 @@ body.newsletter-popup-open{overflow:hidden}
   font-size:11px;font-weight:800;line-height:1;vertical-align:middle;
 }
 .private-unread-summary{display:flex;align-items:center;gap:6px;margin:.5rem 0 0;color:#596273;font-size:13px;font-weight:600}
+
+
+/* Homepage compact layout: keep details available without imposing a long initial scroll. */
+body:has(.hero) .hero{min-height:420px;padding-top:54px;padding-bottom:48px}
+body:has(.hero) .hero-visual{min-height:250px}
+body:has(.hero) .section{padding-top:58px;padding-bottom:58px}
+body:has(.hero) .light-section{padding-top:54px;padding-bottom:54px}
+body:has(.hero) .section-heading{margin-bottom:22px}
+body:has(.hero) .article-grid{margin-top:20px}
+body:has(.hero) .article-show-more{display:flex;margin:22px auto 0}
+body:has(.hero) .article-card:nth-child(n+4){display:none}
+body:has(.hero) .article-grid.is-expanded .article-card:nth-child(n+4){display:flex}
+body:has(.hero) .compact-disclosure{margin-top:24px;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}
+body:has(.hero) .compact-disclosure>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:19px 22px;font-weight:800;color:var(--ink)}
+body:has(.hero) .compact-disclosure>summary::-webkit-details-marker{display:none}
+body:has(.hero) .compact-disclosure>summary::after{content:'＋';display:grid;place-items:center;width:30px;height:30px;flex:0 0 30px;border-radius:50%;background:#fff0f2;color:var(--red);font-size:20px}
+body:has(.hero) .compact-disclosure[open]>summary::after{content:'−'}
+body:has(.hero) .disclosure-action{margin-left:auto;color:var(--red);font-size:12px;white-space:nowrap}
+body:has(.hero) .disclosure-action b{display:none}
+body:has(.hero) .compact-disclosure[open]>summary{border-bottom:1px solid var(--line)}
+body:has(.hero) .compact-disclosure[open]>.claims-grid,
+body:has(.hero) .compact-disclosure[open]>.claims-commitment,
+body:has(.hero) .compact-disclosure[open]>.disclaimer,
+body:has(.hero) .compact-disclosure[open]>.survey-form{margin:24px}
+body:has(.hero) .compact-disclosure .claims-grid{margin-top:24px}
+body:has(.hero) .survey-section{display:block}
+body:has(.hero) .survey-intro{max-width:850px}
+body:has(.hero) .survey-disclosure{max-width:100%}
+body:has(.hero) .survey-form{display:grid;gap:22px}
+body:has(.hero) .contact-section{padding-top:48px;padding-bottom:48px}
+@media(max-width:620px){
+  body:has(.hero) .hero{min-height:0;padding-top:44px;padding-bottom:32px}
+  body:has(.hero) .section,body:has(.hero) .light-section{padding-top:42px;padding-bottom:42px}
+  body:has(.hero) .compact-disclosure>summary{padding:16px;align-items:flex-start}
+  body:has(.hero) .disclosure-action{font-size:11px}
+  body:has(.hero) .compact-disclosure[open]>.claims-grid,
+  body:has(.hero) .compact-disclosure[open]>.claims-commitment,
+  body:has(.hero) .compact-disclosure[open]>.disclaimer,
+  body:has(.hero) .compact-disclosure[open]>.survey-form{margin:16px}
+}
