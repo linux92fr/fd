@@ -31,7 +31,7 @@ const SURVEY_ACCESS_JWKS = createRemoteJWKSet(new URL(SURVEY_ACCESS_ISSUER + "/c
 const SURVEY_ADMIN_EMAILS = new Set([ADMIN_EMAIL, LEGACY_ADMIN_EMAIL]);
 
 const SITE_CONTENT_KEYS = new Set(["claims", "rights", "section_order"]);
-const SITE_SECTION_ORDER = ["intro", "news", "claims", "rights", "survey", "contact"];
+const SITE_SECTION_ORDER = ["news", "newsletter", "claims", "rights", "survey", "contact"];
 const SURVEY_CONFIG_DEFAULT = {
   conditions:"Comment évaluez-vous globalement vos conditions de travail ?",
   priorities:"Quels sujets devraient être prioritaires ?",
