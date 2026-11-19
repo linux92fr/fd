@@ -399,7 +399,8 @@ async function requireSiteAccess(request, env) {
   if (!token || token.length > 8192) return { denied: "TOKEN_MISSING" };
   let payload;
   try {
-    const authConfig = getNeonAuthConfig(env);\n    ({ payload } = await jwtVerify(token, authConfig.jwks, { issuer: authConfig.issuer }));
+    const authConfig = getNeonAuthConfig(env);
+    ({ payload } = await jwtVerify(token, authConfig.jwks, { issuer: authConfig.issuer }));
   } catch (error) {
     const code = String(error.code || error.name || "UNKNOWN").replace(/[^A-Z0-9_]/gi, "").slice(0, 64);
     console.warn("Site access JWT verification failed:", code);
