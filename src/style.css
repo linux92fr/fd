@@ -857,14 +857,14 @@ body.newsletter-popup-open{overflow:hidden}
 .public-notification-count{top:-4px;right:-5px;min-width:15px;height:15px;padding:0 3px;background:#b42336;font-size:9px;font-weight:700}
 .public-logout-button{
   min-height:34px;padding:0 11px;border:1px solid #e3e5e9;border-radius:7px;
-  background:transparent;color:#596273;font:600 12px inherit;cursor:pointer;white-space:nowrap;
+  background:transparent;color:#596273;font:600 12px system-ui,sans-serif;cursor:pointer;white-space:nowrap;
   transition:background .18s ease,border-color .18s ease,color .18s ease;
 }
 .public-logout-button:hover{background:#f7f7f9;border-color:#cbd0d8;color:#202938}
 .public-logout-button:disabled{opacity:.55;cursor:wait}
 .private-message-delete{
   display:block;margin:7px 0 0 auto;padding:2px 0;border:0;background:transparent;
-  color:#8b909b;font:600 10px inherit;cursor:pointer;text-decoration:underline;text-underline-offset:2px;
+  color:#8b909b;font:600 10px system-ui,sans-serif;cursor:pointer;text-decoration:underline;text-underline-offset:2px;
 }
 .private-message-delete:hover{color:#b42336}
 .private-message-delete:disabled{opacity:.5;cursor:wait}
