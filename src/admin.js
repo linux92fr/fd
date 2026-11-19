@@ -549,7 +549,10 @@ async function privateMessagesPage(selectedId = '') {
     const options = contacts.map(contact => '<option value="' + esc(contact.id) + '"' + (selected && contact.id === selected.id ? ' selected' : '') + '>' + esc(contact.name || contact.email) + ' — ' + esc(contact.email) + '</option>').join('');
     const thread = messages.map(message => {
       const mine = message.sender_id === currentAdmin?.id;
-      return '<article class="private-message ' + (mine ? 'is-mine' : 'is-theirs') + '"><p>' + esc(message.body) + '</p><small>' + (mine ? 'Vous' : esc(selected?.name || selected?.email || 'Correspondant')) + ' · ' + esc(new Date(message.created_at).toLocaleString('fr-FR')) + '</small></article>';
+      const deleteAction = ['admin','admin_delegate'].includes(currentAdmin?.role)
+        ? '<button type="button" class="private-message-delete" data-message-id="' + esc(message.id) + '" aria-label="Supprimer ce message">Supprimer</button>'
+        : '';
+      return '<article class="private-message ' + (mine ? 'is-mine' : 'is-theirs') + '"><p>' + esc(message.body) + '</p><small>' + (mine ? 'Vous' : esc(selected?.name || selected?.email || 'Correspondant')) + ' · ' + esc(new Date(message.created_at).toLocaleString('fr-FR')) + '</small>' + deleteAction + '</article>';
     }).join('') || '<p class="admin-help">Aucun message dans cette conversation. Vous pouvez commencer à écrire.</p>';
     frame('<div class="admin-title-row"><div><span class="eyebrow">Échanges internes</span><h1>Messagerie</h1><p>Échangez en privé avec les autres comptes actifs du site.</p></div><button id="logout" class="button button-outline-dark">Déconnexion</button></div><section class="admin-panel"><div class="admin-toolbar"><h2>Nouvelle conversation</h2><button id="back-dashboard" class="button button-outline-dark">← Tableau de bord</button></div><label>Destinataire<select id="private-recipient"><option value="">Choisir un destinataire</option>' + options + '</select></label><div id="private-thread" class="private-thread">' + thread + '</div>' + (selected ? '<form id="private-send" class="admin-form-grid"><label>Votre message<textarea name="body" rows="3" maxlength="5000" required placeholder="Écrivez votre message…"></textarea></label><div class="admin-form-actions"><button class="button button-red" type="submit">Envoyer</button></div></form>' : '<p class="admin-help">Aucun autre compte actif n’est disponible pour le moment.</p>') + '<p id="private-status" class="admin-message" role="status"></p></section>');
     root.querySelector('#logout').onclick = async () => { await auth.signOut(); currentAdmin = null; login('Vous êtes déconnecté.'); };
@@ -569,6 +572,20 @@ async function privateMessagesPage(selectedId = '') {
         root.querySelector('#private-status').textContent = 'Envoi impossible : ' + error.message;
         button.disabled = false;
       }
+    });
+    root.querySelectorAll('.private-message-delete').forEach(button => {
+      button.addEventListener('click', async () => {
+        if (!confirm('Supprimer définitivement ce message ? Cette action est irréversible.')) return;
+        button.disabled = true;
+        try {
+          await call('/api/admin/private-messages/' + encodeURIComponent(button.dataset.messageId), { method: 'DELETE' });
+          await privateMessagesPage(selected.id);
+        } catch (error) {
+          const status = root.querySelector('#private-status');
+          if (status) status.textContent = 'Suppression impossible : ' + error.message;
+          button.disabled = false;
+        }
+      });
     });
     const threadNode = root.querySelector('#private-thread');
     if (threadNode) threadNode.scrollTop = threadNode.scrollHeight;
