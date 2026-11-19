@@ -600,9 +600,24 @@ if (surveyForm) {
   const surveyMessage = document.querySelector('#survey-message');
   const commentField = surveyForm.elements.namedItem('comment');
   const charCount = document.querySelector('#survey-char-count');
+  // Session-only marker prevents accidental repeat submissions without identifying the respondent.
+  const surveySessionKey = 'fd-survey-submitted-v1';
+  let alreadySubmitted = false;
+  try { alreadySubmitted = sessionStorage.getItem(surveySessionKey) === '1'; } catch {}
+  if (alreadySubmitted) {
+    const submitButton = surveyForm.querySelector('button[type="submit"]');
+    if (submitButton) submitButton.disabled = true;
+    surveyMessage.textContent = 'Une réponse a déjà été envoyée depuis cet onglet. Merci pour votre participation.';
+    surveyMessage.className = 'survey-message is-success';
+  }
   commentField.addEventListener('input', () => { charCount.textContent = String(commentField.value.length); });
   surveyForm.addEventListener('submit', async event => {
     event.preventDefault();
+    if (alreadySubmitted) {
+      surveyMessage.textContent = 'Une réponse a déjà été envoyée depuis cet onglet. Merci pour votre participation.';
+      surveyMessage.className = 'survey-message is-success';
+      return;
+    }
     const submit = surveyForm.querySelector('button[type="submit"]');
     const data = new FormData(surveyForm);
     const priorities = data.getAll('priorities');
@@ -629,6 +644,8 @@ if (surveyForm) {
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !result.ok) throw new Error(result.message || 'Impossible d’enregistrer vos réponses.');
+      alreadySubmitted = true;
+      try { sessionStorage.setItem(surveySessionKey, '1'); } catch {}
       surveyForm.reset();
       charCount.textContent = '0';
       surveyMessage.textContent = result.message || 'Merci pour votre participation.';
