@@ -872,3 +872,11 @@ body.newsletter-popup-open{overflow:hidden}
   .public-account-tools{gap:7px}
   .public-logout-button{min-height:32px;padding:0 9px}
 }
+
+/* Internal messaging unread counter */
+.private-unread-badge{
+  display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 6px;
+  margin-left:6px;border-radius:999px;background:#c8102e;color:#fff;
+  font-size:11px;font-weight:800;line-height:1;vertical-align:middle;
+}
+.private-unread-summary{display:flex;align-items:center;gap:6px;margin:.5rem 0 0;color:#596273;font-size:13px;font-weight:600}
