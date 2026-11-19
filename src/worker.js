@@ -775,7 +775,7 @@ async function handleAdmin(request, env, url, origin) {
     ));
     if (!target.rows.length) return json({ error: "USER_NOT_FOUND" }, 404, origin);
     if (isAdminDelegate && (isProtectedAdminEmail(target.rows[0].email) || ["admin", "admin_delegate"].includes(target.rows[0].role))) return json({ error: "PRIVILEGED_ACCOUNT_PROTECTED" }, 403, origin);
-    if (String(target.rows[0].email || "").toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+    if (isProtectedAdminEmail(target.rows[0].email)) {
       return json({ error: "PROTECTED_ACCOUNT", message: "Le compte administrateur principal est protégé." }, 403, origin);
     }
     if (!env.NEON_API_KEY) return json({ error: "NEON_API_KEY_MISSING" }, 503, origin);
@@ -817,12 +817,12 @@ async function handleAdmin(request, env, url, origin) {
     const result = await withDatabase(env, async db => {
       const target = await db.query(
         `SELECT u.id, u.email, u.name, COALESCE(a.status, 'pending') AS previous_status,
-                COALESCE(a.role, CASE WHEN lower(u.email)=lower($2) THEN 'admin' ELSE 'employee' END) AS previous_role
+                COALESCE(a.role, CASE WHEN lower(u.email) IN (lower($2), lower($3)) THEN 'admin' ELSE 'employee' END) AS previous_role
          FROM neon_auth."user" u LEFT JOIN public.site_user_access a ON a.user_id = u.id
          WHERE u.id = $1`, [userId, ADMIN_EMAIL, LEGACY_ADMIN_EMAIL]
       );
       if (!target.rows[0]) return { missing: true };
-      if (target.rows[0].email.toLowerCase() === ADMIN_EMAIL.toLowerCase() && (role !== "admin" || status !== "active")) return { protected: true };
+      if (isProtectedAdminEmail(target.rows[0].email) && (role !== "admin" || status !== "active")) return { protected: true };
       if (isAdminDelegate && (role === "admin" || role === "admin_delegate" || target.rows[0].previous_role === "admin" || target.rows[0].previous_role === "admin_delegate")) return { forbiddenTarget: true };
       if (userId === admin.id && (role !== "admin" || status !== "active")) return { selfProtected: true };
       await db.query(
@@ -1056,7 +1056,7 @@ async function handleAdmin(request, env, url, origin) {
       if (summaryOnly) return { unreadCount: unread.rows[0].count, user: { id: admin.id, name: admin.name, email: admin.email }, contacts: [], messages: [] };
       const contacts = await db.query(
         `SELECT u.id, u.name, u.email,
-                CASE WHEN lower(u.email)=lower($2) THEN 'admin' ELSE COALESCE(a.role,'employee') END AS role
+                CASE WHEN lower(u.email) IN (lower($2), lower($3)) THEN 'admin' ELSE COALESCE(a.role,'employee') END AS role
          FROM neon_auth."user" u
          LEFT JOIN public.site_user_access a ON a.user_id=u.id
          WHERE u."emailVerified"=TRUE
@@ -1096,7 +1096,7 @@ async function handleAdmin(request, env, url, origin) {
         `SELECT u.id FROM neon_auth."user" u
          LEFT JOIN public.site_user_access a ON a.user_id=u.id
          WHERE u.id=$1 AND u."emailVerified"=TRUE
-           AND (lower(u.email)=lower($2) OR a.status='active') LIMIT 1`,
+           AND (lower(u.email) IN (lower($2), lower($3)) OR a.status='active') LIMIT 1`,
         [recipientId, ADMIN_EMAIL, LEGACY_ADMIN_EMAIL]
       );
       if (!recipient.rows.length) return null;
