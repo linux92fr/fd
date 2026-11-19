@@ -269,18 +269,38 @@ async function dashboard() {
     const messagingSummary = await call('/api/admin/private-messages?summary=1');
     const unreadCount = Number(messagingSummary.unreadCount || 0);
     currentAdmin = user;
-    frame('<div class="admin-title-row"><div><span class="eyebrow">Espace sécurisé FO</span><h1>Tableau de bord</h1><p>Vue d’ensemble de l’activité du site et accès rapide aux outils de gestion.</p></div><button id="logout" class="button button-outline-dark">Déconnexion</button></div><section class="admin-panel"><div class="admin-toolbar"><h2>Vue d’ensemble</h2><button id="refresh-overview" class="button button-outline-dark">Actualiser</button></div><div class="admin-stats-grid"><article class="admin-stat"><span>Articles</span><strong>' + Number(overview.articles_total || 0) + '</strong><small>' + Number(overview.articles_published || 0) + ' publiés · ' + Number(overview.articles_draft || 0) + ' brouillons</small></article>' + (['admin','admin_delegate'].includes(user.role) ? '<article class="admin-stat"><span>Messages reçus</span><strong>' + Number(overview.messages_total || 0) + '</strong><small>' + Number(overview.messages_new || 0) + ' nouveaux · ' + Number(overview.messages_in_progress || 0) + ' en cours</small></article><article class="admin-stat"><span>Messages traités</span><strong>' + Number(overview.messages_resolved || 0) + '</strong><small>Demandes marquées comme traitées</small></article>' : '') + '</div></section><section class="admin-panel"><div class="admin-toolbar"><h2>Accès rapides</h2></div><div class="admin-quick-links">' + (['admin','admin_delegate','editor'].includes(user.role) ? '<button id="open-articles" class="button button-red">Gérer les articles</button>' : '') + '<button id="open-private-messages" class="button button-outline-dark">Messagerie interne' + (unreadCount > 0 ? ' <span class="private-unread-badge" aria-label="' + unreadCount + ' message(s) non lu(s)">' + unreadCount + '</span>' : '') + '</button>' + (['admin','admin_delegate'].includes(user.role) ? '<button id="open-messages" class="button button-outline-dark">Messages reçus</button><button id="open-survey" class="button button-outline-dark">Bilan du questionnaire</button><button id="open-media" class="button button-outline-dark">Médiathèque</button><button id="open-homepage" class="button button-outline-dark">Page d’accueil</button><button id="open-newsletter" class="button button-outline-dark">Newsletter</button><button id="open-users" class="button button-outline-dark">Utilisateurs et rôles</button><button id="open-account-emails" class="button button-outline-dark">Prévisualiser les e-mails de compte</button>' : '') + '</div><p class="admin-help">Le bilan du questionnaire reste dans son espace sécurisé dédié. Les médias et les autres réglages seront ajoutés progressivement.</p></section>');
+    const canManage = ['admin','admin_delegate'].includes(user.role);
+    const canWrite = ['admin','admin_delegate','editor'].includes(user.role);
+    const tile = (id, icon, title, description, extra = '') =>
+      '<button type="button" class="admin-module-card" id="' + id + '"><span class="admin-module-icon" aria-hidden="true">' + icon + '</span><span class="admin-module-copy"><strong>' + title + '</strong><small>' + description + '</small></span>' + extra + '<span class="admin-module-arrow" aria-hidden="true">→</span></button>';
+    frame('<div class="admin-title-row admin-dashboard-heading"><div><span class="eyebrow">Espace sécurisé FO</span><h1>Tableau de bord</h1><p>Retrouvez les outils du site, classés par activité.</p><span class="admin-role-chip">' + esc(roleLabels[user.role] || 'Compte') + '</span></div><button id="logout" class="button button-outline-dark">Déconnexion</button></div>' +
+      '<section class="admin-panel admin-overview-panel"><div class="admin-toolbar"><div><span class="eyebrow">En un coup d’œil</span><h2>Activité du site</h2></div><button id="refresh-overview" class="button button-quiet">Actualiser ↻</button></div><div class="admin-stats-grid"><article class="admin-stat"><span>Articles</span><strong>' + Number(overview.articles_total || 0) + '</strong><small>' + Number(overview.articles_published || 0) + ' publiés · ' + Number(overview.articles_draft || 0) + ' brouillons</small></article>' +
+      (canManage ? '<article class="admin-stat"><span>Messages reçus</span><strong>' + Number(overview.messages_total || 0) + '</strong><small>' + Number(overview.messages_new || 0) + ' nouveaux · ' + Number(overview.messages_in_progress || 0) + ' en cours</small></article><article class="admin-stat"><span>Messages traités</span><strong>' + Number(overview.messages_resolved || 0) + '</strong><small>Demandes marquées comme traitées</small></article>' : '') + '</div></section>' +
+      '<section class="admin-module-section"><div class="admin-section-heading"><span class="admin-section-number">01</span><div><h2>Gestion du site</h2><p>Organisez les contenus et les rubriques visibles par les salariés.</p></div></div><div class="admin-module-grid">' +
+      (canWrite ? tile('open-articles','Aa','Actualités','Créer, classer et publier les articles') : '') +
+      (canManage ? tile('open-homepage','⌂','Page d’accueil','Textes, visuels et aperçu de la page') + tile('open-survey','▤','Questionnaire','Consulter les réponses et les statistiques') : '') +
+      '</div></section>' +
+      (canManage ? '<section class="admin-module-section"><div class="admin-section-heading"><span class="admin-section-number">02</span><div><h2>Communication</h2><p>Suivez les échanges avec les salariés et les campagnes d’information.</p></div></div><div class="admin-module-grid">' +
+      tile('open-messages','✉','Messages reçus','Demandes envoyées depuis le formulaire') +
+      tile('open-private-messages','◌','Messagerie interne','Échanges privés entre les comptes actifs', unreadCount > 0 ? '<span class="private-unread-badge">' + unreadCount + '</span>' : '') +
+      tile('open-newsletter','↗','Newsletter','Abonnés, campagnes et suivi des envois') +
+      '</div></section>' +
+      '<section class="admin-module-section"><div class="admin-section-heading"><span class="admin-section-number">03</span><div><h2>Ressources</h2><p>Centralisez les visuels utilisés dans les contenus du site.</p></div></div><div class="admin-module-grid">' +
+      tile('open-media','▧','Médiathèque','Importer et gérer les images') +
+      '</div></section>' +
+      '<section class="admin-module-section"><div class="admin-section-heading"><span class="admin-section-number">04</span><div><h2>Administration</h2><p>Gérez les accès et les outils techniques réservés aux administrateurs.</p></div></div><div class="admin-module-grid">' +
+      tile('open-users','♙','Utilisateurs et rôles','Comptes, autorisations et statuts') +
+      (user.role === 'admin' ? tile('open-account-emails','✉','E-mails de compte','Prévisualiser les messages transactionnels') : '') +
+      '</div></section>' : '') +
+      '<section class="admin-panel admin-help-panel"><strong>Un espace adapté à votre rôle</strong><p>Les rubriques et les actions disponibles dépendent de vos autorisations. Les fonctions sensibles restent réservées aux administrateurs habilités.</p></section>');
     root.querySelector('#logout').onclick = async () => { await auth.signOut(); currentAdmin = null; login('Vous êtes déconnecté.'); };
     root.querySelector('#refresh-overview').onclick = () => dashboard();
-    if (root.querySelector('#open-articles')) root.querySelector('#open-articles').onclick = () => articlesPage();
-    if (root.querySelector('#open-messages')) root.querySelector('#open-messages').onclick = () => messages();
-    if (root.querySelector('#open-survey')) root.querySelector('#open-survey').onclick = () => surveyPage();
-    if (root.querySelector('#open-media')) root.querySelector('#open-media').onclick = () => mediaPage();
-    if (root.querySelector('#open-homepage')) root.querySelector('#open-homepage').onclick = () => homepagePage();
-    if (root.querySelector('#open-newsletter')) root.querySelector('#open-newsletter').onclick = () => newsletterPage({ call, frame, root, dashboard });
-    if (root.querySelector('#open-users')) root.querySelector('#open-users').onclick = () => usersPage();
-    if (root.querySelector('#open-account-emails')) root.querySelector('#open-account-emails').onclick = () => accountEmailsPage();
-    if (root.querySelector('#open-private-messages')) root.querySelector('#open-private-messages').onclick = () => privateMessagesPage();
+    const routes = {
+      'open-articles': articlesPage, 'open-messages': messages, 'open-survey': surveyPage,
+      'open-media': mediaPage, 'open-homepage': homepagePage, 'open-newsletter': () => newsletterPage({ call, frame, root, dashboard }),
+      'open-users': usersPage, 'open-account-emails': accountEmailsPage, 'open-private-messages': () => privateMessagesPage()
+    };
+    for (const [id, handler] of Object.entries(routes)) root.querySelector('#' + id)?.addEventListener('click', handler);
   } catch (err) { login('Impossible de charger le tableau de bord : ' + (err.message || 'ERREUR_INCONNUE') + '.'); }
 }
 async function surveyPage() {
