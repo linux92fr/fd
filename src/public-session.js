@@ -1,14 +1,10 @@
 import { createAuthClient } from '@neondatabase/auth';
 
 const auth = createAuthClient('https://ep-crimson-wave-b972yi2i.neonauth.c-7.eu-central-1.aws.neon.tech/neondb/auth');
-const roleLabels = {
-  admin: 'Super administrateur',
-  admin_delegate: 'Administrateur délégué',
-  editor: 'Rédacteur',
-  employee: 'Salarié / adhérent',
-};
 
 async function installPublicAccountHeader() {
+  if (/^\/admin\/?$/.test(location.pathname)) return;
+
   const header = document.querySelector('.site-header');
   if (!header || header.querySelector('.public-account-tools')) return;
 
@@ -29,7 +25,7 @@ async function installPublicAccountHeader() {
     if (!response.ok) return;
     const data = await response.json();
     const user = data.user || {};
-    if (!user.email || !roleLabels[user.role]) return;
+    if (!user.email) return;
 
     tools.innerHTML = `
       <span class="public-session-chip" title="Session connectée">
@@ -37,7 +33,7 @@ async function installPublicAccountHeader() {
         <span class="public-session-copy"><strong>${escapeHtml(user.name || 'Mon compte')}</strong></span>
       </span>
       <button class="public-notification-placeholder" type="button" disabled aria-label="Notifications — bientôt disponible" title="Notifications et messagerie interne : bientôt disponibles">
-        <span aria-hidden="true">♧</span>
+        <span aria-hidden="true">🔔</span>
       </button>
     `;
   } catch {
@@ -51,8 +47,21 @@ function escapeHtml(value) {
   }[char]));
 }
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', installPublicAccountHeader, { once: true });
-} else {
-  installPublicAccountHeader();
+// main.js builds the public header after imported modules are evaluated.
+// Observe the document so the account controls are added as soon as each page header exists.
+function watchForPublicHeader() {
+  if (/^\/admin\/?$/.test(location.pathname)) return;
+  if (document.querySelector('.site-header')) {
+    installPublicAccountHeader();
+    return;
+  }
+
+  const observer = new MutationObserver(() => {
+    if (!document.querySelector('.site-header')) return;
+    observer.disconnect();
+    installPublicAccountHeader();
+  });
+  observer.observe(document.documentElement, { childList: true, subtree: true });
 }
+
+watchForPublicHeader();
