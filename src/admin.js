@@ -43,7 +43,7 @@ async function call(path, options = {}) {
   return data;
 }
 function frame(content) {
-  const account = currentAdmin ? '<span class="admin-session" style="display:inline-flex;align-items:center;gap:.45rem;padding:.45rem .7rem;border:1px solid #d9dee7;border-radius:999px;font-size:.82rem;color:#263244"><span aria-hidden="true" style="width:8px;height:8px;border-radius:50%;background:#16834a;display:inline-block"></span><span>Connecté : <strong>' + esc(currentAdmin.name || currentAdmin.email) + '</strong> · ' + esc(roleLabels[currentAdmin.role] || currentAdmin.role || 'Compte') + '</span></span>' : '';
+  const account = currentAdmin ? '<span class="admin-session" style="display:inline-flex;align-items:center;gap:.45rem;padding:.45rem .7rem;border:1px solid #d9dee7;border-radius:999px;font-size:.82rem;color:#263244"><span aria-hidden="true" style="width:8px;height:8px;border-radius:50%;background:#16834a;display:inline-block"></span><span>Connecté : <strong>' + esc(currentAdmin.name || 'Mon compte') + '</strong></span></span>' : '';
   root.innerHTML = '<div class="admin-shell"><header class="admin-header"><a class="admin-brand" href="/"><strong>FO</strong> FOCOM · Free Distribution</a><div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;justify-content:flex-end">' + account + '<a href="/">← Voir le site</a></div></header><main class="admin-main">' + content + '</main></div>';
 }
 function login(message = '') {
