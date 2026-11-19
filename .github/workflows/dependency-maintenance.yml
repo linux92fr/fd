@@ -27,7 +27,7 @@ jobs:
       - name: Generate reproducible lockfile
         run: npm install --package-lock-only --ignore-scripts
       - name: Apply non-breaking security updates
-        run: npm audit fix --ignore-scripts
+        run: npm audit fix --ignore-scripts || true
       - name: Report remaining audit findings
         shell: bash
         run: |
