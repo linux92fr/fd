@@ -38,6 +38,23 @@ async function withDatabase(env, callback) {
   }
 }
 
+
+async function withAdvisoryLock(env, key, callback) {
+  if (!env.HYPERDRIVE?.connectionString) throw new Error("DATABASE_NOT_CONFIGURED");
+  const client = new Client({ connectionString: env.HYPERDRIVE.connectionString });
+  let locked = false;
+  try {
+    await client.connect();
+    const result = await client.query("SELECT pg_try_advisory_lock(hashtextextended($1, 0)) AS locked", [key]);
+    locked = result.rows[0]?.locked === true;
+    if (!locked) return { lockUnavailable: true };
+    return await callback();
+  } finally {
+    if (locked) await client.query("SELECT pg_advisory_unlock(hashtextextended($1, 0))", [key]).catch(() => {});
+    await client.end().catch(() => {});
+  }
+}
+
 async function requireSurveyAdmin(request) {
   const assertion = request.headers.get("Cf-Access-Jwt-Assertion");
   if (!assertion) return false;
@@ -825,71 +842,77 @@ async function handleAdmin(request, env, url, origin) {
     let body={};try{body=await request.json()}catch{return json({error:"INVALID_JSON"},400,origin)}
     const action=body.action||"start";
     if(!["start","resume","retry_failed"].includes(action))return json({error:"INVALID_ACTION"},400,origin);
-    const prepared=await withDatabase(env,async db=>{
-      const campaign=(await db.query("SELECT id,status FROM public.newsletter_campaigns WHERE id=$1 FOR UPDATE",[id])).rows[0];
-      if(!campaign)return {error:"CAMPAIGN_NOT_FOUND"};
-      if(action==="start"){
-        if(campaign.status!=="draft")return {error:"CAMPAIGN_NOT_STARTABLE"};
-        await db.query("INSERT INTO public.newsletter_campaign_recipients(campaign_id,subscriber_id,email) SELECT $1,id,email FROM public.newsletter_subscribers WHERE status='subscribed' ON CONFLICT(campaign_id,subscriber_id) DO NOTHING",[id]);
-      } else {
-        if(!["sending","partial"].includes(campaign.status))return {error:"CAMPAIGN_NOT_RESUMABLE"};
-        const active=await db.query("SELECT COUNT(*)::int AS n FROM public.newsletter_campaign_recipients WHERE campaign_id=$1 AND status='sending' AND updated_at>NOW()-INTERVAL '5 minutes'",[id]);
-        if(active.rows[0].n)return {error:"DELIVERY_STILL_RUNNING"};
-        // Only stale attempts become uncertain; they are never resent automatically.
-        await db.query("UPDATE public.newsletter_campaign_recipients SET status='unknown',last_error='Interruption pendant la tentative : résultat Brevo indéterminé',updated_at=NOW() WHERE campaign_id=$1 AND status='sending' AND updated_at<=NOW()-INTERVAL '5 minutes'",[id]);
-        if(action==="retry_failed")await db.query("UPDATE public.newsletter_campaign_recipients r SET status='pending',last_error=NULL,updated_at=NOW() FROM public.newsletter_subscribers s WHERE r.campaign_id=$1 AND r.status='failed' AND s.id=r.subscriber_id AND s.status='subscribed'",[id]);
-      }
-      const counts=await db.query("SELECT COUNT(*)::int AS total, COUNT(*) FILTER(WHERE status='sent')::int AS sent, COUNT(*) FILTER(WHERE status='failed')::int AS failed, COUNT(*) FILTER(WHERE status='unknown')::int AS unknown, COUNT(*) FILTER(WHERE status='pending')::int AS pending FROM public.newsletter_campaign_recipients WHERE campaign_id=$1",[id]);
-      if(!counts.rows[0].total)return {error:"NO_ACTIVE_SUBSCRIBERS"};
-      if(counts.rows[0].total>500)return {error:"TOO_MANY_SUBSCRIBERS_FOR_SINGLE_SEND"};
-      await db.query("UPDATE public.newsletter_campaigns SET status='sending',recipient_count=$1,sent_count=$2,failed_count=$3,updated_at=NOW() WHERE id=$4",[counts.rows[0].total,counts.rows[0].sent,counts.rows[0].failed,id]);
-      return {counts:counts.rows[0]};
-    });
-    if(prepared.error){
-      if(prepared.error==="NO_ACTIVE_SUBSCRIBERS")return json({error:prepared.error},409,origin);
-      if(prepared.error==="TOO_MANY_SUBSCRIBERS_FOR_SINGLE_SEND")return json({error:prepared.error,limit:500},413,origin);
-      return json({error:prepared.error},409,origin);
-    }
-    let processed=0;
-    while(processed<10){
-      const item=await withDatabase(env,async db=>{
-        const r=await db.query("UPDATE public.newsletter_campaign_recipients cr SET status='sending',attempts=attempts+1,updated_at=NOW(),last_error=NULL WHERE cr.id=(SELECT cr2.id FROM public.newsletter_campaign_recipients cr2 JOIN public.newsletter_subscribers s ON s.id=cr2.subscriber_id AND s.status='subscribed' WHERE cr2.campaign_id=$1 AND cr2.status='pending' ORDER BY cr2.id LIMIT 1 FOR UPDATE OF cr2 SKIP LOCKED) RETURNING cr.id,cr.email",[id]);
-        return r.rows[0]||null;
-      });
-      if(!item)break;
-      processed++;
-      const sub=await withDatabase(env,db=>db.query("SELECT unsubscribe_token FROM public.newsletter_subscribers WHERE email=$1",[item.email]));
-      const token=sub.rows[0]?.unsubscribe_token;
-      if(!token){
-        await withDatabase(env,db=>db.query("UPDATE public.newsletter_campaign_recipients SET status='failed',last_error='Jeton de désinscription introuvable',updated_at=NOW() WHERE id=$1",[item.id]));
-        continue;
-      }
-      const unsubscribeUrl=new URL("/newsletter/desinscription",url.origin);unsubscribeUrl.searchParams.set("token",token);const u=unsubscribeUrl.toString();
-      const c=await withDatabase(env,db=>db.query("SELECT subject,preview_text,html_content FROM public.newsletter_campaigns WHERE id=$1",[id]));
-      const campaign=c.rows[0];
-      const html=(campaign.preview_text?'<div style="display:none;max-height:0;overflow:hidden;opacity:0">'+campaign.preview_text.replace(/[&<>]/g," ")+'</div>':"")+campaign.html_content+'<hr><p style="font:12px Arial;color:#666">Vous recevez cette newsletter FO Free Distribution. <a href="'+u+'">Se désinscrire</a>.</p>';
-      try{
-        let response;
-        if(newsletterSimulator){
-          // Preview-only deterministic test: example.com succeeds; the seeded Gmail test row fails.
-          response={ok:item.email==="test-desinscription@example.com",status:item.email==="test-desinscription@example.com"?201:400};
+    const outcome=await withAdvisoryLock(env,"newsletter-campaign:"+id,async()=>{
+      const prepared=await withDatabase(env,async db=>{
+        const campaign=(await db.query("SELECT id,status FROM public.newsletter_campaigns WHERE id=$1",[id])).rows[0];
+        if(!campaign)return {error:"CAMPAIGN_NOT_FOUND"};
+        if(action==="start"){
+          if(campaign.status!=="draft")return {error:"CAMPAIGN_NOT_STARTABLE"};
+          await db.query("INSERT INTO public.newsletter_campaign_recipients(campaign_id,subscriber_id,email) SELECT $1,id,email FROM public.newsletter_subscribers WHERE status='subscribed' ON CONFLICT(campaign_id,subscriber_id) DO NOTHING",[id]);
         } else {
-          response=await fetch("https://api.brevo.com/v3/smtp/email",{method:"POST",headers:{"accept":"application/json","api-key":env.BREVO_API_KEY,"content-type":"application/json"},body:JSON.stringify({sender:{name:"FO Free Distribution",email:"newsletter@focom-iliad.fr"},to:[{email:item.email}],subject:campaign.subject,htmlContent:html,textContent:html.replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim()+"\n\nSe désinscrire : "+u,headers:{"List-Unsubscribe":"<"+u+">","List-Unsubscribe-Post":"List-Unsubscribe=One-Click"}})});
+          if(!["sending","partial"].includes(campaign.status))return {error:"CAMPAIGN_NOT_RESUMABLE"};
+          const active=await db.query("SELECT COUNT(*)::int AS n FROM public.newsletter_campaign_recipients WHERE campaign_id=$1 AND status='sending' AND updated_at>NOW()-INTERVAL '5 minutes'",[id]);
+          if(active.rows[0].n)return {error:"DELIVERY_STILL_RUNNING"};
+          await db.query("UPDATE public.newsletter_campaign_recipients SET status='unknown',last_error='Interruption pendant la tentative : résultat Brevo indéterminé',updated_at=NOW() WHERE campaign_id=$1 AND status='sending' AND updated_at<=NOW()-INTERVAL '5 minutes'",[id]);
+          if(action==="retry_failed")await db.query("UPDATE public.newsletter_campaign_recipients r SET status='pending',last_error=NULL,updated_at=NOW() FROM public.newsletter_subscribers s WHERE r.campaign_id=$1 AND r.status='failed' AND s.id=r.subscriber_id AND s.status='subscribed'",[id]);
         }
-        if(response.ok)await withDatabase(env,db=>db.query("UPDATE public.newsletter_campaign_recipients SET status='sent',sent_at=NOW(),updated_at=NOW() WHERE id=$1",[item.id]));
-        else if(response.status>=500)await withDatabase(env,db=>db.query("UPDATE public.newsletter_campaign_recipients SET status='unknown',last_error=$2,updated_at=NOW() WHERE id=$1",[item.id,"Réponse Brevo HTTP "+response.status]));
-        else await withDatabase(env,db=>db.query("UPDATE public.newsletter_campaign_recipients SET status='failed',last_error=$2,updated_at=NOW() WHERE id=$1",[item.id,newsletterSimulator?"Échec simulé (aucun email envoyé)":"Réponse Brevo HTTP "+response.status]));
-      }catch(e){
-        await withDatabase(env,db=>db.query("UPDATE public.newsletter_campaign_recipients SET status='unknown',last_error='Erreur réseau : résultat Brevo indéterminé',updated_at=NOW() WHERE id=$1",[item.id]));
+        // A pending recipient who unsubscribed after the campaign snapshot is terminally skipped.
+        await db.query("UPDATE public.newsletter_campaign_recipients r SET status='skipped',last_error='Désinscription avant envoi',updated_at=NOW() FROM public.newsletter_subscribers s WHERE r.campaign_id=$1 AND r.status='pending' AND s.id=r.subscriber_id AND s.status<>'subscribed'",[id]);
+        const counts=await db.query("SELECT COUNT(*)::int AS total,COUNT(*) FILTER(WHERE status='sent')::int AS sent,COUNT(*) FILTER(WHERE status='failed')::int AS failed,COUNT(*) FILTER(WHERE status='unknown')::int AS unknown,COUNT(*) FILTER(WHERE status='pending')::int AS pending,COUNT(*) FILTER(WHERE status='skipped')::int AS skipped FROM public.newsletter_campaign_recipients WHERE campaign_id=$1",[id]);
+        if(!counts.rows[0].total)return {error:"NO_ACTIVE_SUBSCRIBERS"};
+        if(counts.rows[0].total>500)return {error:"TOO_MANY_SUBSCRIBERS_FOR_SINGLE_SEND"};
+        await db.query("UPDATE public.newsletter_campaigns SET status='sending',recipient_count=$1,sent_count=$2,failed_count=$3,updated_at=NOW() WHERE id=$4",[counts.rows[0].total,counts.rows[0].sent,counts.rows[0].failed,id]);
+        return {counts:counts.rows[0]};
+      });
+      if(prepared.error)return {error:prepared.error};
+      let processed=0;
+      while(processed<10){
+        const item=await withDatabase(env,async db=>{
+          const r=await db.query("UPDATE public.newsletter_campaign_recipients cr SET status='sending',attempts=attempts+1,updated_at=NOW(),last_error=NULL WHERE cr.id=(SELECT cr2.id FROM public.newsletter_campaign_recipients cr2 JOIN public.newsletter_subscribers s ON s.id=cr2.subscriber_id AND s.status='subscribed' WHERE cr2.campaign_id=$1 AND cr2.status='pending' ORDER BY cr2.id LIMIT 1 FOR UPDATE OF cr2 SKIP LOCKED) RETURNING cr.id,cr.email",[id]);
+          return r.rows[0]||null;
+        });
+        if(!item)break;
+        processed++;
+        const sub=await withDatabase(env,db=>db.query("SELECT unsubscribe_token FROM public.newsletter_subscribers WHERE email=$1 AND status='subscribed'",[item.email]));
+        const token=sub.rows[0]?.unsubscribe_token;
+        if(!token){
+          await withDatabase(env,db=>db.query("UPDATE public.newsletter_campaign_recipients SET status='skipped',last_error='Désinscription avant envoi',updated_at=NOW() WHERE id=$1",[item.id]));
+          continue;
+        }
+        const unsubscribeUrl=new URL("/newsletter/desinscription",url.origin);unsubscribeUrl.searchParams.set("token",token);const u=unsubscribeUrl.toString();
+        const c=await withDatabase(env,db=>db.query("SELECT subject,preview_text,html_content FROM public.newsletter_campaigns WHERE id=$1",[id]));
+        const campaign=c.rows[0];
+        const html=(campaign.preview_text?'<div style="display:none;max-height:0;overflow:hidden;opacity:0">'+campaign.preview_text.replace(/[&<>]/g," ")+'</div>':"")+campaign.html_content+'<hr><p style="font:12px Arial;color:#666">Vous recevez cette newsletter FO Free Distribution. <a href="'+u+'">Se désinscrire</a>.</p>';
+        try{
+          let response;
+          if(newsletterSimulator){
+            response={ok:item.email==="test-desinscription@example.com",status:item.email==="test-desinscription@example.com"?201:400};
+          } else {
+            response=await fetch("https://api.brevo.com/v3/smtp/email",{method:"POST",headers:{"accept":"application/json","api-key":env.BREVO_API_KEY,"content-type":"application/json"},body:JSON.stringify({sender:{name:"FO Free Distribution",email:"newsletter@focom-iliad.fr"},to:[{email:item.email}],subject:campaign.subject,htmlContent:html,textContent:html.replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim()+"\n\nSe désinscrire : "+u,headers:{"List-Unsubscribe":"<"+u+">","List-Unsubscribe-Post":"List-Unsubscribe=One-Click"}})});
+          }
+          if(response.ok)await withDatabase(env,db=>db.query("UPDATE public.newsletter_campaign_recipients SET status='sent',sent_at=NOW(),updated_at=NOW() WHERE id=$1",[item.id]));
+          else if(response.status>=500)await withDatabase(env,db=>db.query("UPDATE public.newsletter_campaign_recipients SET status='unknown',last_error=$2,updated_at=NOW() WHERE id=$1",[item.id,"Réponse Brevo HTTP "+response.status]));
+          else await withDatabase(env,db=>db.query("UPDATE public.newsletter_campaign_recipients SET status='failed',last_error=$2,updated_at=NOW() WHERE id=$1",[item.id,newsletterSimulator?"Échec simulé (aucun email envoyé)":"Réponse Brevo HTTP "+response.status]));
+        }catch(e){
+          await withDatabase(env,db=>db.query("UPDATE public.newsletter_campaign_recipients SET status='unknown',last_error='Erreur réseau : résultat Brevo indéterminé',updated_at=NOW() WHERE id=$1",[item.id]));
+        }
       }
-    }
-    const final=await withDatabase(env,async db=>{
-      const r=await db.query("SELECT COUNT(*) FILTER(WHERE status='sent')::int AS sent,COUNT(*) FILTER(WHERE status='failed')::int AS failed,COUNT(*) FILTER(WHERE status='unknown')::int AS unknown,COUNT(*) FILTER(WHERE status IN ('pending','sending'))::int AS remaining FROM public.newsletter_campaign_recipients WHERE campaign_id=$1",[id]);
-      const x=r.rows[0],status=x.remaining?"sending":(x.failed||x.unknown)?"partial":"sent";
-      await db.query("UPDATE public.newsletter_campaigns SET status=$1,sent_count=$2,failed_count=$3,sent_at=CASE WHEN $4 THEN NOW() ELSE NULL END,updated_at=NOW() WHERE id=$5",[status,x.sent,x.failed+x.unknown,(status==="sent"||status==="partial"),id]);
-      return {...x,status};
+      const final=await withDatabase(env,async db=>{
+        await db.query("UPDATE public.newsletter_campaign_recipients r SET status='skipped',last_error='Désinscription avant envoi',updated_at=NOW() FROM public.newsletter_subscribers s WHERE r.campaign_id=$1 AND r.status='pending' AND s.id=r.subscriber_id AND s.status<>'subscribed'",[id]);
+        const r=await db.query("SELECT COUNT(*) FILTER(WHERE status='sent')::int AS sent,COUNT(*) FILTER(WHERE status='failed')::int AS failed,COUNT(*) FILTER(WHERE status='unknown')::int AS unknown,COUNT(*) FILTER(WHERE status='skipped')::int AS skipped,COUNT(*) FILTER(WHERE status IN ('pending','sending'))::int AS remaining FROM public.newsletter_campaign_recipients WHERE campaign_id=$1",[id]);
+        const x=r.rows[0],status=x.remaining?"sending":(x.failed||x.unknown)?"partial":"sent";
+        await db.query("UPDATE public.newsletter_campaigns SET status=$1,sent_count=$2,failed_count=$3,sent_at=CASE WHEN $4 THEN NOW() ELSE NULL END,updated_at=NOW() WHERE id=$5",[status,x.sent,x.failed,(status==="sent"||status==="partial"),id]);
+        return {...x,status};
+      });
+      return {ok:true,...final};
     });
-    return json({ok:true,...final},200,origin);
+    if(outcome.lockUnavailable)return json({error:"DELIVERY_STILL_RUNNING",message:"Un traitement de cette campagne est déjà en cours. Réessayez dans quelques instants."},409,origin);
+    if(outcome.error){
+      if(outcome.error==="NO_ACTIVE_SUBSCRIBERS")return json({error:outcome.error},409,origin);
+      if(outcome.error==="TOO_MANY_SUBSCRIBERS_FOR_SINGLE_SEND")return json({error:outcome.error,limit:500},413,origin);
+      return json({error:outcome.error},409,origin);
+    }
+    return json(outcome,200,origin);
   }
 
   if (url.pathname === "/api/admin/homepage" && request.method === "GET") {
