@@ -909,7 +909,9 @@ async function handleAdmin(request, env, url, origin) {
     let body;
     try { body = await request.json(); } catch { return json({ error: "INVALID_JSON" }, 400, origin); }
     const role = body.role, status = body.status;
+    const name = body.name === undefined ? null : (typeof body.name === "string" ? body.name.trim() : "");
     if (!["admin", "admin_delegate", "editor", "employee"].includes(role) || !["pending", "active", "suspended"].includes(status)) return json({ error: "INVALID_ROLE_OR_STATUS" }, 400, origin);
+    if (name !== null && (!name || name.length > 120)) return json({ error: "INVALID_USER_NAME", message: "Le nom doit contenir entre 1 et 120 caractères." }, 400, origin);
     const result = await withDatabase(env, async db => {
       const target = await db.query(
         `SELECT u.id, u.email, u.name, COALESCE(a.status, 'pending') AS previous_status,
@@ -918,7 +920,7 @@ async function handleAdmin(request, env, url, origin) {
          WHERE u.id = $1`, [userId, ADMIN_EMAIL, LEGACY_ADMIN_EMAIL]
       );
       if (!target.rows[0]) return { missing: true };
-      if (isProtectedAdminEmail(target.rows[0].email) && (role !== "admin" || status !== "active")) return { protected: true };
+      if (isProtectedAdminEmail(target.rows[0].email) && ((role !== "admin" || status !== "active") || name !== null)) return { protected: true };
       if (isAdminDelegate && (role === "admin" || role === "admin_delegate" || target.rows[0].previous_role === "admin" || target.rows[0].previous_role === "admin_delegate")) return { forbiddenTarget: true };
       if (userId === admin.id && (role !== "admin" || status !== "active")) return { selfProtected: true };
       await db.query(
@@ -928,7 +930,10 @@ async function handleAdmin(request, env, url, origin) {
            approved_by = EXCLUDED.approved_by, approved_at = EXCLUDED.approved_at, updated_at = now()`,
         [userId, role, status, admin.id]
       );
-      return { updated: true, email: target.rows[0].email, name: target.rows[0].name, activated: target.rows[0].previous_status !== "active" && status === "active" };
+      if (name !== null) {
+        await db.query('UPDATE neon_auth."user" SET name = $1 WHERE id = $2', [name, userId]);
+      }
+      return { updated: true, email: target.rows[0].email, name: name ?? target.rows[0].name, activated: target.rows[0].previous_status !== "active" && status === "active" };
     });
     if (result.missing) return json({ error: "USER_NOT_FOUND" }, 404, origin);
     if (result.protected) return json({ error: "SUPER_ADMIN_PROTECTED" }, 403, origin);
