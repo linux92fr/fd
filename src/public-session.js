@@ -1,6 +1,6 @@
 import { createAuthClient } from '@neondatabase/auth';
 
-const auth = createAuthClient('https://ep-crimson-wave-b972yi2i.neonauth.c-7.eu-central-1.aws.neonauth.c-7.eu-central-1.aws.neon.tech/neondb/auth');
+const auth = createAuthClient('https://ep-crimson-wave-b972yi2i.neonauth.c-7.eu-central-1.aws.neon.tech/neondb/auth');
 const roleLabels = {
   admin: 'Super administrateur',
   admin_delegate: 'Administrateur délégué',
