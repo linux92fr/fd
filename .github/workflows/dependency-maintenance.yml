@@ -1,4 +1,4 @@
-name: Dependency audit and safe fixes
+name: Dependency audit (read-only)
 
 on:
   push:
@@ -7,50 +7,52 @@ on:
     paths:
       - ".github/workflows/dependency-maintenance.yml"
       - "package.json"
+      - "package-lock.json"
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  audit-and-fix:
+  audit:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout working branch
         uses: actions/checkout@v4
         with:
           ref: port-preview-features-production
-          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: false
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Generate reproducible lockfile
-        run: npm install --package-lock-only --ignore-scripts
-      - name: Apply non-breaking security updates
-        run: npm audit fix --ignore-scripts || true
-      - name: Report remaining audit findings
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+      - name: Audit dependencies
         shell: bash
         run: |
           npm audit --json > npm-audit.json || true
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           const report = JSON.parse(fs.readFileSync('npm-audit.json', 'utf8'));
+          if (report.error) {
+            console.error('npm audit could not complete:', report.error.summary || report.error.code || 'unknown error');
+            process.exit(1);
+          }
           const counts = report.metadata?.vulnerabilities || {};
-          console.log('Remaining npm audit findings:', JSON.stringify(counts));
+          console.log('Dependency audit:', JSON.stringify(counts));
           for (const [name, item] of Object.entries(report.vulnerabilities || {})) {
-            console.log(JSON.stringify({name, severity:item.severity, isDirect:item.isDirect, range:item.range, fixAvailable:item.fixAvailable}));
+            console.log(JSON.stringify({
+              name,
+              severity: item.severity,
+              direct: item.isDirect,
+              range: item.range,
+              fixAvailable: item.fixAvailable
+            }));
+          }
+          if ((counts.high || 0) > 0 || (counts.critical || 0) > 0) {
+            console.error('High or critical vulnerabilities require a reviewed, explicit dependency update.');
+            process.exit(1);
           }
           NODE
-      - name: Commit lockfile and safe dependency updates
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package.json package-lock.json
-          if git diff --cached --quiet; then
-            echo "No dependency or lockfile changes to commit."
-          else
-            git commit -m "chore: lock dependencies and apply safe audit fixes"
-            git push origin HEAD:port-preview-features-production
-          fi
