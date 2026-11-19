@@ -812,3 +812,6 @@ body.newsletter-popup-open{overflow:hidden}
 .public-session-copy small{font-size:.66rem;color:#64748b;white-space:nowrap}
 .public-notification-placeholder{width:36px;height:36px;display:inline-grid;place-items:center;border:1px solid rgba(30,41,59,.16);border-radius:50%;background:#fff;color:#64748b;font-size:1.25rem;opacity:.7;cursor:not-allowed}
 @media(max-width:760px){.public-account-tools{width:100%;justify-content:flex-end;order:3;margin:0;padding:.35rem 0}.public-session-chip{max-width:min(72vw,260px)}}
+
+.public-login-link{display:inline-flex;align-items:center;justify-content:center;padding:.58rem .95rem;border-radius:999px;background:#bd102b;color:#fff!important;font-size:.82rem;font-weight:700;text-decoration:none!important;white-space:nowrap;box-shadow:0 2px 7px rgba(120,10,30,.16);transition:background .2s ease,transform .2s ease}
+.public-login-link:hover{background:#970d22;transform:translateY(-1px)}
