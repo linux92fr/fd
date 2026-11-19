@@ -8,7 +8,7 @@ const allowedOrigins = new Set([
 ]);
 const authJwksCache = new Map();
 function getNeonAuthConfig(env) {
-  const baseUrl = String(env.NEON_AUTH_URL || "").replace(/\\/+$/, "");
+  const baseUrl = String(env.NEON_AUTH_URL || "").replace(/\/+$/, "");
   if (!baseUrl || !baseUrl.startsWith("https://")) throw new Error("NEON_AUTH_URL_NOT_CONFIGURED");
   let jwks = authJwksCache.get(baseUrl);
   if (!jwks) {
