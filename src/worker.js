@@ -1,10 +1,26 @@
 import { Client } from "pg";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 
-const allowedOrigins = new Set(["https://fd.focom-iliad.fr", "https://fd.linux92fr.workers.dev"]);
-const AUTH_BASE_URL = "https://ep-sweet-resonance-b9ov2yaa.neonauth.c-7.eu-central-1.aws.neon.tech/neondb/auth";
-const AUTH_JWKS = createRemoteJWKSet(new URL(AUTH_BASE_URL + "/.well-known/jwks.json"));
-const AUTH_ISSUER = new URL(AUTH_BASE_URL).origin;
+const allowedOrigins = new Set([
+  "https://fd.focom-iliad.fr",
+  "https://fd.linux92fr.workers.dev",
+  "https://fd-preview.linux92fr.workers.dev",
+]);
+const authJwksCache = new Map();
+function getNeonAuthConfig(env) {
+  const baseUrl = String(env.NEON_AUTH_URL || "").replace(/\\/+$/, "");
+  if (!baseUrl || !baseUrl.startsWith("https://")) throw new Error("NEON_AUTH_URL_NOT_CONFIGURED");
+  let jwks = authJwksCache.get(baseUrl);
+  if (!jwks) {
+    jwks = createRemoteJWKSet(new URL(baseUrl + "/.well-known/jwks.json"));
+    authJwksCache.set(baseUrl, jwks);
+  }
+  return { baseUrl, issuer: new URL(baseUrl).origin, jwks };
+}
+function isOriginAllowed(origin, env) {
+  const configured = String(env.ALLOWED_ORIGINS || "").split(",").map(value => value.trim()).filter(Boolean);
+  return Boolean(origin) && configured.includes(origin);
+}
 const ADMIN_EMAIL = "contact@focom-iliad.fr";
 const LEGACY_ADMIN_EMAIL = "free-distri@focom-iliad.fr";
 const isProtectedAdminEmail = email => [ADMIN_EMAIL, LEGACY_ADMIN_EMAIL].includes(String(email || "").toLowerCase());
@@ -383,7 +399,7 @@ async function requireSiteAccess(request, env) {
   if (!token || token.length > 8192) return { denied: "TOKEN_MISSING" };
   let payload;
   try {
-    ({ payload } = await jwtVerify(token, AUTH_JWKS, { issuer: AUTH_ISSUER }));
+    const authConfig = getNeonAuthConfig(env);\n    ({ payload } = await jwtVerify(token, authConfig.jwks, { issuer: authConfig.issuer }));
   } catch (error) {
     const code = String(error.code || error.name || "UNKNOWN").replace(/[^A-Z0-9_]/gi, "").slice(0, 64);
     console.warn("Site access JWT verification failed:", code);
@@ -432,7 +448,7 @@ function base64UrlToBytes(value) {
   return Uint8Array.from(binary, char => char.charCodeAt(0));
 }
 
-async function verifyNeonWebhook(rawBody, headers) {
+async function verifyNeonWebhook(rawBody, headers, env) {
   const signature = headers.get("x-neon-signature") || "";
   const kid = headers.get("x-neon-signature-kid") || "";
   const timestamp = headers.get("x-neon-timestamp") || "";
@@ -450,7 +466,7 @@ async function verifyNeonWebhook(rawBody, headers) {
   catch { throw new Error("WEBHOOK_SIGNATURE_HEADER_INVALID"); }
   if (protectedHeader.alg !== "EdDSA") throw new Error("WEBHOOK_SIGNATURE_ALGORITHM_INVALID");
 
-  const jwksResponse = await fetch(AUTH_BASE_URL + "/.well-known/jwks.json", {
+  const authConfig = getNeonAuthConfig(env);\n  const jwksResponse = await fetch(authConfig.baseUrl + "/.well-known/jwks.json", {
     headers: { "accept": "application/json" },
     cf: { cacheTtl: 300, cacheEverything: true },
   });
@@ -514,7 +530,7 @@ async function handleNeonAuthWebhook(request, env) {
   if (rawBody.length > 32768) return json({ error: "PAYLOAD_TOO_LARGE" }, 413);
 
   let payload;
-  try { payload = await verifyNeonWebhook(rawBody, request.headers); }
+  try { payload = await verifyNeonWebhook(rawBody, request.headers, env); }
   catch (error) {
     console.warn("Neon Auth webhook rejected:", error?.message || "verification failed");
     return json({ error: "INVALID_WEBHOOK_SIGNATURE" }, 401);
@@ -715,9 +731,9 @@ async function handleAdmin(request, env, url, origin) {
         !["employee", "editor", "admin", "admin_delegate"].includes(role)) {
       return json({ error: "INVALID_USER_FIELDS", message: "Vérifiez le nom, l’adresse e-mail et le rôle." }, 400, origin);
     }
-    if (!env.NEON_API_KEY) return json({ error: "NEON_API_KEY_MISSING", message: "La clé API Neon n’est pas configurée sur ce Worker." }, 503, origin);
+    if (!env.NEON_API_KEY || !env.NEON_PROJECT_ID || !env.NEON_BRANCH_ID) return json({ error: "NEON_API_CONFIGURATION_MISSING", message: "La configuration API Neon n’est pas complète sur cet environnement." }, 503, origin);
     try {
-      const neonResponse = await fetch("https://console.neon.tech/api/v2/projects/delicate-lake-24433548/branches/br-aged-sky-b9610vxa/auth/users", {
+      const neonResponse = await fetch(`https://console.neon.tech/api/v2/projects/${encodeURIComponent(env.NEON_PROJECT_ID || "")}/branches/${encodeURIComponent(env.NEON_BRANCH_ID || "")}/auth/users`, {
         method: "POST",
         headers: { "Authorization": "Bearer " + env.NEON_API_KEY, "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({ email, name }),
@@ -778,9 +794,9 @@ async function handleAdmin(request, env, url, origin) {
     if (isProtectedAdminEmail(target.rows[0].email)) {
       return json({ error: "PROTECTED_ACCOUNT", message: "Le compte administrateur principal est protégé." }, 403, origin);
     }
-    if (!env.NEON_API_KEY) return json({ error: "NEON_API_KEY_MISSING" }, 503, origin);
+    if (!env.NEON_API_KEY || !env.NEON_PROJECT_ID || !env.NEON_BRANCH_ID) return json({ error: "NEON_API_CONFIGURATION_MISSING" }, 503, origin);
     const neonResponse = await fetch(
-      "https://console.neon.tech/api/v2/projects/delicate-lake-24433548/branches/br-aged-sky-b9610vxa/auth/users/" + encodeURIComponent(targetId),
+      `https://console.neon.tech/api/v2/projects/${encodeURIComponent(env.NEON_PROJECT_ID || "")}/branches/${encodeURIComponent(env.NEON_BRANCH_ID || "")}/auth/users/` + encodeURIComponent(targetId),
       { method: "DELETE", headers: { "Authorization": "Bearer " + env.NEON_API_KEY, "Accept": "application/json" } }
     );
     if (!neonResponse.ok && neonResponse.status !== 404) {
@@ -1241,7 +1257,7 @@ export default {
     const url = new URL(request.url);
     const origin = request.headers.get("Origin") || "";
 
-    if (url.pathname.startsWith("/api/") && origin && !allowedOrigins.has(origin)) {
+    if (url.pathname.startsWith("/api/") && origin && !isOriginAllowed(origin, env)) {
       return new Response(null, { status: 403 });
     }
 
