@@ -8,6 +8,7 @@ on:
       - redesign/admin-modern-workspace
       - feat/content-questionnaire-editor
       - feat/admin-header-shortcut
+      - fix/admin-header-gear
     paths:
       - "src/**"
       - "public/**"

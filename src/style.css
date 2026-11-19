@@ -999,3 +999,10 @@ body:has(.hero) .contact-section{padding-top:48px;padding-bottom:48px}
 .survey-config-option .admin-form-actions{display:flex;gap:4px}
 .admin-panel fieldset.admin-panel{margin:12px 0;padding:18px;border-radius:12px}
 @media(max-width:680px){.survey-config-option{grid-template-columns:1fr}.survey-config-option .admin-form-actions{justify-content:flex-end}}
+
+
+/* Administration shortcut: only rendered for privileged authenticated roles. */
+.public-admin-shortcut{width:34px;height:34px;display:inline-grid;place-items:center;border:1px solid #e3e5e9;border-radius:9px;background:transparent;color:#596273;text-decoration:none;transition:background .18s ease,border-color .18s ease,color .18s ease}
+.public-admin-shortcut svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.public-admin-shortcut:hover,.public-admin-shortcut:focus-visible{background:#fff7f8;border-color:#d9a0aa;color:#b42336}
+.public-admin-shortcut:focus-visible{outline:3px solid rgba(200,16,46,.2);outline-offset:2px}
