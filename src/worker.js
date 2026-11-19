@@ -724,7 +724,7 @@ async function handleAdmin(request, env, url, origin) {
               COALESCE(a.role, CASE WHEN lower(u.email) = lower($1) THEN 'admin' ELSE 'employee' END) AS role,
               COALESCE(a.status, CASE WHEN lower(u.email) = lower($1) THEN 'active' ELSE 'pending' END) AS status
        FROM neon_auth."user" u LEFT JOIN public.site_user_access a ON a.user_id = u.id
-       AND ($2::boolean OR lower(u.email) <> lower($1))
+       WHERE ($2::boolean OR lower(u.email) <> lower($1))
        ORDER BY u."createdAt" DESC LIMIT 500`, [ADMIN_EMAIL, !isAdminDelegate]
     ));
     return json({ users: r.rows, canAssignDelegate: isSuperAdmin }, 200, origin);
