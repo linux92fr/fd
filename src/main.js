@@ -1,4 +1,5 @@
 import './style.css';
+import './public-session.js';
 
 function renderArticleMarkup(source) {
   const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({
@@ -257,6 +258,40 @@ document.querySelector('#app').innerHTML = `
       </div>
     </section>
 
+    <section class="section newsletter-signup-section" id="newsletter">
+      <div class="newsletter-signup-card">
+        <div class="newsletter-signup-copy">
+          <span class="eyebrow">Restez informés</span>
+          <h2>Recevez les actualités de <span>FO Free Distribution.</span></h2>
+          <p>Inscrivez-vous pour recevoir par e-mail nos informations syndicales, actualités, revendications et prochaines actions.</p>
+          <p class="newsletter-signup-note">Inscription gratuite. Vous pourrez vous désinscrire à tout moment depuis chaque newsletter.</p>
+        </div>
+        <form id="fd-newsletter-form" class="newsletter-signup-form">
+          <label for="newsletter-email">Votre adresse e-mail</label>
+          <input id="newsletter-email" name="email" type="email" maxlength="254" autocomplete="email" required placeholder="vous@exemple.fr">
+          <label class="newsletter-consent"><input name="consent_confirmed" type="checkbox" value="yes" required><span>J’accepte de recevoir la newsletter FO Free Distribution et confirme mon inscription.</span></label>
+          <div class="newsletter-honeypot" aria-hidden="true"><label>Ne pas remplir<input name="website" type="text" tabindex="-1" autocomplete="off"></label></div>
+          <button class="button button-red" type="submit">Je m’inscris à la newsletter <span>→</span></button>
+          <p class="newsletter-signup-privacy">Votre adresse sera utilisée uniquement pour l’envoi de la newsletter FO. Elle ne sera pas publiée ni communiquée à des tiers à des fins commerciales.</p>
+          <p id="newsletter-signup-message" class="newsletter-signup-message" role="status" aria-live="polite"></p>
+        </form>
+      </div>
+    </section>
+
+    <div class="newsletter-popup" id="newsletter-popup" aria-hidden="true">
+      <div class="newsletter-popup-backdrop" data-newsletter-close></div>
+      <section class="newsletter-popup-dialog" role="dialog" aria-modal="true" aria-labelledby="newsletter-popup-title">
+        <button class="newsletter-popup-close" type="button" aria-label="Fermer" data-newsletter-close>×</button>
+        <div class="newsletter-popup-header"><span class="newsletter-popup-brand">FO FREE DISTRIBUTION</span><h2 id="newsletter-popup-title">Restez informés&nbsp;!</h2><p>Informer · Défendre · Agir</p></div>
+        <div class="newsletter-popup-body">
+          <h3>L’actualité sociale directement dans votre boîte mail.</h3>
+          <p>Recevez nos informations syndicales, revendications, actions et actualités concernant les salariés de Free Distribution.</p>
+          <button class="button button-red newsletter-popup-cta" type="button" data-newsletter-scroll>Découvrir la newsletter et m’inscrire <span>→</span></button>
+          <p class="newsletter-popup-footnote">Inscription gratuite · Désinscription possible à tout moment.</p>
+          <button class="newsletter-popup-later" type="button" data-newsletter-close>Plus tard</button>
+        </div>
+      </section>
+    </div>
     <section class="section claims-section" id="revendications">
       <div class="section-heading">
         <div><span class="eyebrow" data-homepage="claims_eyebrow">Élections professionnelles · FO Free Distribution</span><h2 data-homepage="claims_title">Nos revendications</h2></div>
@@ -398,6 +433,79 @@ document.querySelector('#app').innerHTML = `
 
 installBackToTop();
 
+
+
+// Newsletter launch popup: once per browser after 9 seconds; never shown in admin/contact/unsubscribe flows.
+(() => {
+  const popup = document.querySelector('#newsletter-popup');
+  if (!popup) return;
+  const excluded = location.pathname.startsWith('/admin') || location.pathname.startsWith('/contact') || location.pathname.startsWith('/newsletter/desinscription');
+  if (excluded) return;
+  const storageKey = 'fd-newsletter-popup-seen-v1';
+  const close = () => {
+    popup.classList.remove('is-visible');
+    popup.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('newsletter-popup-open');
+    try { localStorage.setItem(storageKey, '1'); } catch {}
+  };
+  popup.querySelectorAll('[data-newsletter-close]').forEach(button => button.addEventListener('click', close));
+  popup.querySelector('[data-newsletter-scroll]').addEventListener('click', () => {
+    close();
+    document.querySelector('#newsletter')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    window.setTimeout(() => document.querySelector('#newsletter-email')?.focus({ preventScroll: true }), 500);
+  });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape' && popup.classList.contains('is-visible')) close(); });
+  let alreadySeen = false;
+  try { alreadySeen = localStorage.getItem(storageKey) === '1'; } catch {}
+  if (!alreadySeen) window.setTimeout(() => {
+    popup.classList.add('is-visible');
+    popup.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('newsletter-popup-open');
+    popup.querySelector('[data-newsletter-close]')?.focus();
+  }, 9000);
+})();
+
+// Public newsletter signup: explicit consent is required; the Worker never sends a welcome email.
+const newsletterForm = document.querySelector('#fd-newsletter-form');
+if (newsletterForm) {
+  const newsletterStatus = document.querySelector('#newsletter-signup-message');
+  newsletterForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const submit = newsletterForm.querySelector('button[type="submit"]');
+    const data = new FormData(newsletterForm);
+    submit.disabled = true;
+    submit.textContent = 'Inscription en cours…';
+    newsletterStatus.textContent = '';
+    newsletterStatus.className = 'newsletter-signup-message';
+    try {
+      const response = await fetch('/api/newsletter/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({
+          email: String(data.get('email') || ''),
+          consent_confirmed: data.get('consent_confirmed') === 'yes',
+          website: String(data.get('website') || ''),
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.ok) throw new Error(result.message || 'Impossible de finaliser votre inscription.');
+      try { localStorage.setItem('fd-newsletter-popup-seen-v1', '1'); } catch {}
+      document.querySelector('#newsletter-popup')?.classList.remove('is-visible');
+      document.querySelector('#newsletter-popup')?.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('newsletter-popup-open');
+      newsletterForm.reset();
+      newsletterStatus.textContent = result.message || 'Votre inscription à la newsletter FO est bien enregistrée.';
+      newsletterStatus.className = 'newsletter-signup-message is-success';
+    } catch (error) {
+      newsletterStatus.textContent = error.message || 'Une erreur est survenue. Merci de réessayer.';
+      newsletterStatus.className = 'newsletter-signup-message is-error';
+    } finally {
+      submit.disabled = false;
+      submit.innerHTML = 'Je m’inscris à la newsletter <span>→</span>';
+    }
+  });
+}
+
 const toggle = document.querySelector('.menu-toggle');
 const menu = document.querySelector('.main-nav');
 toggle.addEventListener('click', () => {
@@ -492,9 +600,24 @@ if (surveyForm) {
   const surveyMessage = document.querySelector('#survey-message');
   const commentField = surveyForm.elements.namedItem('comment');
   const charCount = document.querySelector('#survey-char-count');
+  // Session-only marker prevents accidental repeat submissions without identifying the respondent.
+  const surveySessionKey = 'fd-survey-submitted-v1';
+  let alreadySubmitted = false;
+  try { alreadySubmitted = sessionStorage.getItem(surveySessionKey) === '1'; } catch {}
+  if (alreadySubmitted) {
+    const submitButton = surveyForm.querySelector('button[type="submit"]');
+    if (submitButton) submitButton.disabled = true;
+    surveyMessage.textContent = 'Une réponse a déjà été envoyée depuis cet onglet. Merci pour votre participation.';
+    surveyMessage.className = 'survey-message is-success';
+  }
   commentField.addEventListener('input', () => { charCount.textContent = String(commentField.value.length); });
   surveyForm.addEventListener('submit', async event => {
     event.preventDefault();
+    if (alreadySubmitted) {
+      surveyMessage.textContent = 'Une réponse a déjà été envoyée depuis cet onglet. Merci pour votre participation.';
+      surveyMessage.className = 'survey-message is-success';
+      return;
+    }
     const submit = surveyForm.querySelector('button[type="submit"]');
     const data = new FormData(surveyForm);
     const priorities = data.getAll('priorities');
@@ -521,6 +644,8 @@ if (surveyForm) {
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !result.ok) throw new Error(result.message || 'Impossible d’enregistrer vos réponses.');
+      alreadySubmitted = true;
+      try { sessionStorage.setItem(surveySessionKey, '1'); } catch {}
       surveyForm.reset();
       charCount.textContent = '0';
       surveyMessage.textContent = result.message || 'Merci pour votre participation.';

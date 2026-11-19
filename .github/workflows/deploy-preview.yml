@@ -1,0 +1,45 @@
+name: Deploy Cloudflare Worker preview
+
+on:
+  push:
+    branches:
+      - port-preview-features-production
+    paths:
+      - "src/**"
+      - "public/**"
+      - "index.html"
+      - "package.json"
+      - "package-lock.json"
+      - ".env.preview"
+      - "wrangler.preview.jsonc"
+      - ".github/workflows/deploy-preview.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-fd-preview
+  cancel-in-progress: true
+
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: port-preview-features-production
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm ci
+      - name: Audit locked dependencies
+        run: npm audit --audit-level=high
+      - name: Build preview assets
+        run: npm run build:preview
+      - name: Deploy preview Worker and assets
+        run: npx wrangler deploy --config wrangler.preview.jsonc
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

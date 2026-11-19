@@ -1,3 +1,4 @@
+import { newsletterPage } from './newsletter-admin.js';
 function renderArticleMarkup(source) {
   const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -21,9 +22,11 @@ function renderArticleMarkup(source) {
 
 import { createAuthClient } from '@neondatabase/auth';
 
-const auth = createAuthClient('https://ep-sweet-resonance-b9ov2yaa.neonauth.c-7.eu-central-1.aws.neon.tech/neondb/auth');
+const auth = createAuthClient(import.meta.env.VITE_NEON_AUTH_URL);
 const root = document.querySelector('#app');
 let mediaReturn = null;
+let currentAdmin = null;
+const roleLabels = { admin: 'Super administrateur', admin_delegate: 'Administrateur délégué', editor: 'Rédacteur', employee: 'Salarié / adhérent' };
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 async function token() {
@@ -40,10 +43,12 @@ async function call(path, options = {}) {
   return data;
 }
 function frame(content) {
-  root.innerHTML = '<div class="admin-shell"><header class="admin-header"><a class="admin-brand" href="/"><strong>FO</strong> FOCOM · Free Distribution</a><a href="/">← Voir le site</a></header><main class="admin-main">' + content + '</main></div>';
+  const account = currentAdmin ? '<span class="admin-session" style="display:inline-flex;align-items:center;gap:.45rem;padding:.45rem .7rem;border:1px solid #d9dee7;border-radius:999px;font-size:.82rem;color:#263244"><span aria-hidden="true" style="width:8px;height:8px;border-radius:50%;background:#16834a;display:inline-block"></span><span>Connecté : <strong>' + esc(currentAdmin.name || 'Mon compte') + '</strong></span></span>' : '';
+  root.innerHTML = '<div class="admin-shell"><header class="admin-header"><a class="admin-brand" href="/"><strong>FO</strong> FOCOM · Free Distribution</a><div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;justify-content:flex-end">' + account + '<a href="/">← Voir le site</a></div></header><main class="admin-main">' + content + '</main></div>';
 }
 function login(message = '') {
-  frame('<section class="admin-panel admin-login"><span class="eyebrow">Espace sécurisé</span><h1>Administration</h1><p>Connectez-vous avec le compte administrateur.</p><form id="login"><label>Adresse e-mail<input name="email" type="email" value="contact@focom-iliad.fr" required autocomplete="username"></label><label>Mot de passe<input name="password" type="password" required autocomplete="current-password"></label><button class="button button-red">Se connecter</button><p class="admin-message">' + esc(message) + '</p></form><button type="button" id="forgot-password" class="text-button">Mot de passe oublié ?</button><p><button type="button" id="verify-email-link" class="text-button">Vérifier mon adresse e-mail</button></p></section>');
+  currentAdmin = null;
+  frame('<section class="admin-panel admin-login"><span class="eyebrow">Espace sécurisé</span><h1>Administration</h1><p>Connectez-vous avec votre adresse e-mail et votre mot de passe.</p><form id="login"><label>Adresse e-mail<input name="email" type="email" required autocomplete="username" placeholder="vous@exemple.fr"></label><label>Mot de passe<input name="password" type="password" required autocomplete="current-password"></label><button class="button button-red">Se connecter</button><p class="admin-message">' + esc(message) + '</p></form><button type="button" id="first-password" class="text-button">Première connexion ? Définir mon mot de passe</button><br><button type="button" id="forgot-password" class="text-button">Mot de passe oublié ?</button><p><button type="button" id="verify-email-link" class="text-button">Vérifier mon adresse e-mail</button></p></section>');
   root.querySelector('#login').addEventListener('submit', async e => {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
@@ -53,12 +58,12 @@ function login(message = '') {
       await dashboard();
     } catch (err) { login(err.message || 'Connexion impossible.'); }
   });
-  root.querySelector('#forgot-password').addEventListener('click', () => passwordRequest());
-  root.querySelector('#verify-email-link').addEventListener('click', () => emailVerification(root.querySelector('#login [name=email]').value));
+  root.querySelector('#first-password').addEventListener('click', () => initialPasswordSetup(root.querySelector('#login [name="email"]').value));
+  root.querySelector('#forgot-password').addEventListener('click', () => passwordRequest(root.querySelector('#login [name="email"]').value));
+  root.querySelector('#verify-email-link').addEventListener('click', () => emailVerification('', root.querySelector('#login [name="email"]').value));
 }
-function emailVerification(email = 'contact@focom-iliad.fr', message = '') {
-  const safeEmail = esc(email);
-  frame('<section class="admin-panel admin-login"><span class="eyebrow">Vérification du compte</span><h1>Confirmer votre adresse e-mail</h1><p>Un code de vérification sera envoyé à l’adresse indiquée ci-dessous.</p><form id="send-verification"><label>Adresse e-mail<input name="email" type="email" value="' + safeEmail + '" required autocomplete="email"></label><button class="button button-outline-dark">Envoyer un nouveau code</button></form><form id="verify-email" style="margin-top:1rem"><label>Code reçu par e-mail<input name="otp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" required></label><button class="button button-red">Vérifier mon adresse</button><p class="admin-message" role="status">' + esc(message) + '</p></form><button type="button" id="back-login" class="text-button">← Retour à la connexion</button></section>');
+function emailVerification(message = '', initialEmail = '') {
+  frame('<section class="admin-panel admin-login"><span class="eyebrow">Vérification du compte</span><h1>Confirmer votre adresse e-mail</h1><p>Saisissez l’adresse e-mail du compte à vérifier. Un code à 6 chiffres sera envoyé à cette adresse.</p><form id="send-verification"><label>Adresse e-mail<input name="email" type="email" value="' + esc(initialEmail) + '" required autocomplete="email" placeholder="vous@exemple.fr"></label><button class="button button-outline-dark">Envoyer un code</button></form><form id="verify-email" style="margin-top:1rem"><label>Code reçu par e-mail<input name="otp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" required></label><button class="button button-red">Vérifier mon adresse</button><p class="admin-message" role="status">' + esc(message) + '</p></form><button type="button" id="back-login" class="text-button">← Retour à la connexion</button></section>');
   root.querySelector('#back-login').onclick = () => login();
   root.querySelector('#send-verification').addEventListener('submit', async e => {
     e.preventDefault();
@@ -69,83 +74,213 @@ function emailVerification(email = 'contact@focom-iliad.fr', message = '') {
     try {
       const result = await auth.emailOtp.sendVerificationOtp({ email, type: 'email-verification' });
       if (result?.error) throw new Error(result.error.message || 'Envoi impossible.');
-      emailVerification(email, 'Un nouveau code vient d’être envoyé. Vérifiez votre boîte de réception.');
-    } catch (err) { emailVerification(email, err.message || 'Impossible d’envoyer le code.'); }
+      emailVerification('Un code vient d’être envoyé à ' + email + '. Consultez cette boîte de réception.', email);
+    } catch (err) {
+      emailVerification(err.message || 'Impossible d’envoyer le code.', email);
+    }
   });
   root.querySelector('#verify-email').addEventListener('submit', async e => {
     e.preventDefault();
     const form = e.currentTarget;
-    const email = new FormData(root.querySelector('#send-verification')).get('email');
     const otp = new FormData(form).get('otp');
+    const email = root.querySelector('#send-verification [name="email"]').value.trim();
     const button = form.querySelector('button');
     button.disabled = true;
     try {
       const result = await auth.emailOtp.verifyEmail({ email, otp });
       if (result?.error) throw new Error(result.error.message || 'Code invalide ou expiré.');
-      login('Adresse e-mail vérifiée. Vous pouvez maintenant vous connecter ou réinitialiser votre mot de passe.');
+      login('Adresse e-mail vérifiée pour ' + email + '. Vous pouvez maintenant vous connecter.');
     } catch (err) {
       form.querySelector('.admin-message').textContent = err.message || 'Code invalide ou expiré. Demandez un nouveau code.';
       button.disabled = false;
     }
   });
 }
-function passwordRequest(message = '') {
-  frame('<section class="admin-panel admin-login"><span class="eyebrow">Récupération du compte</span><h1>Réinitialiser le mot de passe</h1><p>Saisissez l’adresse e-mail de votre compte administrateur. Vous recevrez un lien pour choisir un nouveau mot de passe.</p><form id="password-request"><label>Adresse e-mail<input name="email" type="email" value="contact@focom-iliad.fr" required autocomplete="email"></label><button class="button button-red">Envoyer le lien</button><p class="admin-message" role="status">' + esc(message) + '</p></form><button type="button" id="back-login" class="text-button">← Retour à la connexion</button></section>');
+function passwordMeetsPolicy(password) {
+  return password.length >= 12 &&
+    /[a-z]/.test(password) &&
+    /[A-Z]/.test(password) &&
+    /[0-9]/.test(password) &&
+    /[^A-Za-z0-9]/.test(password);
+}
+function generateSecurePassword(length = 20) {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%*-_+=?';
+  const limit = 256 - (256 % chars.length);
+  let result = '';
+  while (result.length < length) {
+    const bytes = new Uint8Array(length * 2);
+    crypto.getRandomValues(bytes);
+    for (const byte of bytes) {
+      if (byte < limit) result += chars[byte % chars.length];
+      if (result.length === length) break;
+    }
+  }
+  return result;
+}
+function attachPasswordTools(form, passwordInput, confirmInput) {
+  const generator = form.querySelector('[data-generate-password]');
+  const strength = form.querySelector('[data-password-strength]');
+  const update = () => {
+    const value = passwordInput.value;
+    if (!strength) return;
+    const checks = [
+      value.length >= 12,
+      /[a-z]/.test(value),
+      /[A-Z]/.test(value),
+      /[0-9]/.test(value),
+      /[^A-Za-z0-9]/.test(value)
+    ];
+    const score = checks.filter(Boolean).length;
+    strength.textContent = !value ? '12 caractères minimum, avec majuscule, minuscule, chiffre et caractère spécial.' :
+      (score === 5 ? 'Mot de passe robuste' : 'Robustesse : ' + score + '/5 critères');
+  };
+  passwordInput.addEventListener('input', update);
+  if (generator) generator.addEventListener('click', () => {
+    const generated = generateSecurePassword();
+    passwordInput.value = generated;
+    if (confirmInput) confirmInput.value = generated;
+    passwordInput.type = 'text';
+    update();
+    passwordInput.dispatchEvent(new Event('input', { bubbles: true }));
+    generator.textContent = 'Mot de passe généré';
+  });
+  update();
+}
+function initialPasswordSetup(initialEmail = '', message = '') {
+  frame('<section class="admin-panel admin-login"><span class="eyebrow">Première connexion</span><h1>Définir mon mot de passe</h1><p>Saisissez l’adresse e-mail utilisée par l’administrateur pour créer votre compte. Un code de vérification à usage unique vous sera envoyé.</p><form id="initial-password-request"><label>Adresse e-mail<input name="email" type="email" value="' + esc(initialEmail) + '" required autocomplete="email"></label><button class="button button-red">Recevoir un code</button><p class="admin-message" role="status">' + esc(message) + '</p></form><button type="button" id="back-login" class="text-button">← Retour à la connexion</button></section>');
   root.querySelector('#back-login').onclick = () => login();
-  root.querySelector('#password-request').addEventListener('submit', async e => {
+  root.querySelector('#initial-password-request').addEventListener('submit', async e => {
     e.preventDefault();
-    const button = e.currentTarget.querySelector('button[type="submit"], button:not([type])');
+    const form = e.currentTarget, button = form.querySelector('button');
+    const email = new FormData(form).get('email').trim().toLowerCase();
     button.disabled = true;
     try {
-      const email = new FormData(e.currentTarget).get('email');
-      const result = await auth.requestPasswordReset({ email, redirectTo: location.origin + '/admin?reset-password=1' });
-      if (result?.error) throw new Error(result.error.message || 'Envoi impossible.');
-      passwordRequest('Si cette adresse correspond à un compte, un e-mail de réinitialisation vient d’être envoyé. Vérifiez aussi vos courriers indésirables.');
+      const result = await auth.forgetPassword.emailOtp({ email });
+      if (result?.error) throw new Error(result.error.message || 'Envoi du code impossible.');
+      initialPasswordVerify(email, 'Si cette adresse correspond à un compte, un code a été envoyé. Vérifiez votre boîte de réception et vos courriers indésirables.');
     } catch (err) {
-      passwordRequest(err.message || 'Impossible d’envoyer le lien. Réessayez.');
+      initialPasswordSetup(email, err.message || 'Impossible d’envoyer le code. Réessayez plus tard.');
     }
   });
 }
-function passwordReset() {
-  const params = new URLSearchParams(location.search);
-  const resetToken = params.get('token');
-  const authError = params.get('error');
-  if (!resetToken) {
-    passwordRequest(authError ? 'Le lien est invalide ou expiré. Vous pouvez demander un nouvel e-mail.' : 'Le lien de réinitialisation est incomplet.');
-    return;
-  }
-  frame('<section class="admin-panel admin-login"><span class="eyebrow">Sécurisation du compte</span><h1>Choisir un nouveau mot de passe</h1><form id="password-reset"><label>Nouveau mot de passe<input name="password" type="password" minlength="8" required autocomplete="new-password"></label><label>Confirmer le mot de passe<input name="confirm" type="password" minlength="8" required autocomplete="new-password"></label><button class="button button-red">Enregistrer le nouveau mot de passe</button><p class="admin-message" role="status"></p></form></section>');
-  root.querySelector('#password-reset').addEventListener('submit', async e => {
+function initialPasswordVerify(email, message = '') {
+  frame('<section class="admin-panel admin-login"><span class="eyebrow">Vérification sécurisée</span><h1>Choisir mon mot de passe</h1><p>Un code à usage unique a été envoyé à <strong>' + esc(email) + '</strong>. Saisissez-le puis choisissez votre mot de passe personnel.</p><form id="initial-password-verify"><label>Code reçu<input name="otp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" required></label><label>Nouveau mot de passe<input name="password" type="password" minlength="12" required autocomplete="new-password"></label><button type="button" class="button button-outline-dark" data-generate-password>Générer un mot de passe</button><p class="admin-hint" data-password-strength>12 caractères minimum, avec majuscule, minuscule, chiffre et caractère spécial.</p><label>Confirmer le mot de passe<input name="confirm" type="password" minlength="12" required autocomplete="new-password"></label><button class="button button-red">Valider et définir mon mot de passe</button><p class="admin-message" role="status">' + esc(message) + '</p></form><button type="button" id="resend-code" class="text-button">Renvoyer un code</button></section>');
+  const initialForm = root.querySelector('#initial-password-verify');
+  attachPasswordTools(initialForm, initialForm.elements.password, initialForm.elements.confirm);
+  root.querySelector('#resend-code').onclick = () => initialPasswordSetup(email);
+  root.querySelector('#initial-password-verify').addEventListener('submit', async e => {
     e.preventDefault();
-    const form = e.currentTarget;
-    const values = new FormData(form);
-    const password = values.get('password');
-    const message = form.querySelector('.admin-message');
-    if (password !== values.get('confirm')) { message.textContent = 'Les deux mots de passe ne correspondent pas.'; return; }
-    const button = form.querySelector('button');
-    button.disabled = true;
+    const form = e.currentTarget, values = new FormData(form);
+    const otp = String(values.get('otp') || '').trim();
+    const password = String(values.get('password') || '');
+    const messageNode = form.querySelector('.admin-message');
+    if (!passwordMeetsPolicy(password)) { messageNode.textContent = 'Utilisez au moins 12 caractères avec une majuscule, une minuscule, un chiffre et un caractère spécial.'; return; }
+    if (password !== values.get('confirm')) { messageNode.textContent = 'Les deux mots de passe ne correspondent pas.'; return; }
+    const button = form.querySelector('button'); button.disabled = true;
     try {
-      const result = await auth.resetPassword({ newPassword: password, token: resetToken });
-      if (result?.error) throw new Error(result.error.message || 'Réinitialisation impossible.');
+      const checked = await auth.emailOtp.checkVerificationOtp({ email, otp, type: 'forget-password' });
+      if (checked?.error || !checked?.data?.success) throw new Error(checked?.error?.message || 'Code invalide ou expiré. Demandez-en un nouveau.');
+      const reset = await auth.emailOtp.resetPassword({ email, otp, password });
+      if (reset?.error) throw new Error(reset.error.message || 'Impossible d’enregistrer le mot de passe.');
       history.replaceState({}, '', '/admin');
-      login('Mot de passe modifié. Vous pouvez maintenant vous connecter.');
+      login('Votre mot de passe est défini. Vous pouvez maintenant vous connecter.');
     } catch (err) {
-      message.textContent = err.message || 'Le lien est invalide ou expiré. Demandez-en un nouveau.';
+      messageNode.textContent = err.message || 'Vérification impossible. Réessayez.';
       button.disabled = false;
     }
   });
 }
+
+function passwordRequest(initialEmail = '', message = '') {
+  frame('<section class="admin-panel admin-login"><span class="eyebrow">Récupération du compte</span><h1>Réinitialiser le mot de passe</h1><p>Saisissez l’adresse e-mail du compte concerné. Vous recevrez un code de vérification à usage unique pour choisir un nouveau mot de passe.</p><form id="password-request"><label>Adresse e-mail<input name="email" type="email" value="' + esc(initialEmail) + '" required autocomplete="email" placeholder="vous@exemple.fr"></label><button class="button button-red">Recevoir un code</button><p class="admin-message" role="status">' + esc(message) + '</p></form><button type="button" id="back-login" class="text-button">← Retour à la connexion</button></section>');
+  root.querySelector('#back-login').onclick = () => login();
+  root.querySelector('#password-request').addEventListener('submit', async e => {
+    e.preventDefault();
+    const form = e.currentTarget, button = form.querySelector('button');
+    const email = new FormData(form).get('email').trim().toLowerCase();
+    button.disabled = true;
+    try {
+      const result = await auth.forgetPassword.emailOtp({ email });
+      if (result?.error) throw new Error(result.error.message || 'Envoi du code impossible.');
+      passwordReset(email, 'Si cette adresse correspond à un compte, un code a été envoyé. Vérifiez votre boîte de réception et vos courriers indésirables.');
+    } catch (err) {
+      passwordRequest(email, err.message || 'Impossible d’envoyer le code. Réessayez plus tard.');
+    }
+  });
+}
+function passwordReset(email = '', message = '') {
+  if (!email) {
+    passwordRequest('', message || 'Saisissez votre adresse e-mail pour recevoir un code de réinitialisation.');
+    return;
+  }
+  frame('<section class="admin-panel admin-login"><span class="eyebrow">Récupération du compte</span><h1>Choisir un nouveau mot de passe</h1><p>Un code à usage unique a été envoyé à <strong>' + esc(email) + '</strong>. Saisissez-le puis choisissez votre nouveau mot de passe.</p><form id="password-reset"><label>Code reçu<input name="otp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" required></label><label>Nouveau mot de passe<input name="password" type="password" minlength="12" required autocomplete="new-password"></label><button type="button" class="button button-outline-dark" data-generate-password>Générer un mot de passe</button><p class="admin-hint" data-password-strength>12 caractères minimum, avec majuscule, minuscule, chiffre et caractère spécial.</p><label>Confirmer le mot de passe<input name="confirm" type="password" minlength="12" required autocomplete="new-password"></label><button class="button button-red">Enregistrer le nouveau mot de passe</button><p class="admin-message" role="status">' + esc(message) + '</p></form><button type="button" id="resend-reset-code" class="text-button">Renvoyer un code</button></section>');
+  const resetForm = root.querySelector('#password-reset');
+  attachPasswordTools(resetForm, resetForm.elements.password, resetForm.elements.confirm);
+  root.querySelector('#resend-reset-code').onclick = () => passwordRequest(email);
+  resetForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const form = e.currentTarget, values = new FormData(form);
+    const otp = String(values.get('otp') || '').trim();
+    const password = String(values.get('password') || '');
+    const messageNode = form.querySelector('.admin-message');
+    if (!passwordMeetsPolicy(password)) { messageNode.textContent = 'Utilisez au moins 12 caractères avec une majuscule, une minuscule, un chiffre et un caractère spécial.'; return; }
+    if (password !== values.get('confirm')) { messageNode.textContent = 'Les deux mots de passe ne correspondent pas.'; return; }
+    const button = form.querySelector('button[type="submit"], button:not([type])'); button.disabled = true;
+    try {
+      const checked = await auth.emailOtp.checkVerificationOtp({ email, otp, type: 'forget-password' });
+      if (checked?.error || !checked?.data?.success) throw new Error(checked?.error?.message || 'Code invalide ou expiré. Demandez-en un nouveau.');
+      const reset = await auth.emailOtp.resetPassword({ email, otp, password });
+      if (reset?.error) throw new Error(reset.error.message || 'Impossible d’enregistrer le mot de passe.');
+      history.replaceState({}, '', '/admin');
+      login('Mot de passe modifié. Vous pouvez maintenant vous connecter.');
+    } catch (err) {
+      messageNode.textContent = err.message || 'Réinitialisation impossible. Réessayez.';
+      button.disabled = false;
+    }
+  });
+}
+async function accountEmailsPage() {
+  frame('<div class="admin-title-row"><div><span class="eyebrow">Messages transactionnels</span><h1>Aperçu des e-mails de compte</h1><p>Prévisualisation uniquement : aucun message ne sera envoyé.</p></div><button id="back-dashboard" class="button button-outline-dark">← Tableau de bord</button></div><div id="account-email-previews"><p>Chargement des modèles…</p></div>');
+  root.querySelector('#back-dashboard').onclick = () => dashboard();
+  const target = root.querySelector('#account-email-previews');
+  try {
+    const templates = [
+      { type: 'welcome', label: 'Bienvenue' },
+      { type: 'activation', label: 'Activation du compte' },
+    ];
+    const results = await Promise.all(templates.map(async item => ({
+      ...item,
+      data: await call('/api/admin/account-email-preview?type=' + encodeURIComponent(item.type) + '&name=' + encodeURIComponent('Utilisateur de démonstration')),
+    })));
+    target.innerHTML = results.map(({ label, data }) =>
+      '<section class="admin-panel"><h2>' + esc(label) + '</h2>' +
+      '<p><strong>Expéditeur :</strong> ' + esc(data.sender?.name) + ' &lt;' + esc(data.sender?.email) + '&gt;</p>' +
+      '<p><strong>Objet :</strong> ' + esc(data.subject) + '</p>' +
+      '<h3>Aperçu HTML</h3><iframe title="' + esc(label) + '" sandbox="" style="width:100%;min-height:420px;border:1px solid #ddd;border-radius:8px;background:#fff" srcdoc="' + esc(data.html) + '"></iframe>' +
+      '<details style="margin-top:1rem"><summary>Version texte</summary><pre style="white-space:pre-wrap">' + esc(data.text) + '</pre></details></section>'
+    ).join('');
+  } catch (err) {
+    target.innerHTML = '<section class="admin-panel"><p class="admin-message">Impossible de charger les aperçus : ' + esc(err.message || 'Erreur inconnue') + '</p><p>Vérifiez que votre session administrateur est toujours active, puis réessayez.</p></section>';
+  }
+}
 async function dashboard() {
   try {
-    const { overview = {} } = await call('/api/admin/overview');
-    frame('<div class="admin-title-row"><div><span class="eyebrow">Espace sécurisé FO</span><h1>Tableau de bord</h1><p>Vue d’ensemble de l’activité du site et accès rapide aux outils de gestion.</p></div><button id="logout" class="button button-outline-dark">Déconnexion</button></div><section class="admin-panel"><div class="admin-toolbar"><h2>Vue d’ensemble</h2><button id="refresh-overview" class="button button-outline-dark">Actualiser</button></div><div class="admin-stats-grid"><article class="admin-stat"><span>Articles</span><strong>' + Number(overview.articles_total || 0) + '</strong><small>' + Number(overview.articles_published || 0) + ' publiés · ' + Number(overview.articles_draft || 0) + ' brouillons</small></article><article class="admin-stat"><span>Messages reçus</span><strong>' + Number(overview.messages_total || 0) + '</strong><small>' + Number(overview.messages_new || 0) + ' nouveaux · ' + Number(overview.messages_in_progress || 0) + ' en cours</small></article><article class="admin-stat"><span>Messages traités</span><strong>' + Number(overview.messages_resolved || 0) + '</strong><small>Demandes marquées comme traitées</small></article></div></section><section class="admin-panel"><div class="admin-toolbar"><h2>Accès rapides</h2></div><div class="admin-quick-links"><button id="open-articles" class="button button-red">Gérer les articles</button><button id="open-messages" class="button button-outline-dark">Messages reçus</button><button id="open-survey" class="button button-outline-dark">Bilan du questionnaire</button><button id="open-media" class="button button-outline-dark">Médiathèque</button><button id="open-homepage" class="button button-outline-dark">Page d’accueil</button></div><p class="admin-help">Le bilan du questionnaire reste dans son espace sécurisé dédié. Les médias et les autres réglages seront ajoutés progressivement.</p></section>');
-    root.querySelector('#logout').onclick = async () => { await auth.signOut(); login('Vous êtes déconnecté.'); };
+    const { overview = {}, user = {} } = await call('/api/admin/overview');
+    const messagingSummary = await call('/api/admin/private-messages?summary=1');
+    const unreadCount = Number(messagingSummary.unreadCount || 0);
+    currentAdmin = user;
+    frame('<div class="admin-title-row"><div><span class="eyebrow">Espace sécurisé FO</span><h1>Tableau de bord</h1><p>Vue d’ensemble de l’activité du site et accès rapide aux outils de gestion.</p></div><button id="logout" class="button button-outline-dark">Déconnexion</button></div><section class="admin-panel"><div class="admin-toolbar"><h2>Vue d’ensemble</h2><button id="refresh-overview" class="button button-outline-dark">Actualiser</button></div><div class="admin-stats-grid"><article class="admin-stat"><span>Articles</span><strong>' + Number(overview.articles_total || 0) + '</strong><small>' + Number(overview.articles_published || 0) + ' publiés · ' + Number(overview.articles_draft || 0) + ' brouillons</small></article>' + (['admin','admin_delegate'].includes(user.role) ? '<article class="admin-stat"><span>Messages reçus</span><strong>' + Number(overview.messages_total || 0) + '</strong><small>' + Number(overview.messages_new || 0) + ' nouveaux · ' + Number(overview.messages_in_progress || 0) + ' en cours</small></article><article class="admin-stat"><span>Messages traités</span><strong>' + Number(overview.messages_resolved || 0) + '</strong><small>Demandes marquées comme traitées</small></article>' : '') + '</div></section><section class="admin-panel"><div class="admin-toolbar"><h2>Accès rapides</h2></div><div class="admin-quick-links">' + (['admin','admin_delegate','editor'].includes(user.role) ? '<button id="open-articles" class="button button-red">Gérer les articles</button>' : '') + '<button id="open-private-messages" class="button button-outline-dark">Messagerie interne' + (unreadCount > 0 ? ' <span class="private-unread-badge" aria-label="' + unreadCount + ' message(s) non lu(s)">' + unreadCount + '</span>' : '') + '</button>' + (['admin','admin_delegate'].includes(user.role) ? '<button id="open-messages" class="button button-outline-dark">Messages reçus</button><button id="open-survey" class="button button-outline-dark">Bilan du questionnaire</button><button id="open-media" class="button button-outline-dark">Médiathèque</button><button id="open-homepage" class="button button-outline-dark">Page d’accueil</button><button id="open-newsletter" class="button button-outline-dark">Newsletter</button><button id="open-users" class="button button-outline-dark">Utilisateurs et rôles</button><button id="open-account-emails" class="button button-outline-dark">Prévisualiser les e-mails de compte</button>' : '') + '</div><p class="admin-help">Le bilan du questionnaire reste dans son espace sécurisé dédié. Les médias et les autres réglages seront ajoutés progressivement.</p></section>');
+    root.querySelector('#logout').onclick = async () => { await auth.signOut(); currentAdmin = null; login('Vous êtes déconnecté.'); };
     root.querySelector('#refresh-overview').onclick = () => dashboard();
-    root.querySelector('#open-articles').onclick = () => articlesPage();
-    root.querySelector('#open-messages').onclick = () => messages();
-    root.querySelector('#open-survey').onclick = () => surveyPage();
-    root.querySelector('#open-media').onclick = () => mediaPage();
-    root.querySelector('#open-homepage').onclick = () => homepagePage();
+    if (root.querySelector('#open-articles')) root.querySelector('#open-articles').onclick = () => articlesPage();
+    if (root.querySelector('#open-messages')) root.querySelector('#open-messages').onclick = () => messages();
+    if (root.querySelector('#open-survey')) root.querySelector('#open-survey').onclick = () => surveyPage();
+    if (root.querySelector('#open-media')) root.querySelector('#open-media').onclick = () => mediaPage();
+    if (root.querySelector('#open-homepage')) root.querySelector('#open-homepage').onclick = () => homepagePage();
+    if (root.querySelector('#open-newsletter')) root.querySelector('#open-newsletter').onclick = () => newsletterPage({ call, frame, root, dashboard });
+    if (root.querySelector('#open-users')) root.querySelector('#open-users').onclick = () => usersPage();
+    if (root.querySelector('#open-account-emails')) root.querySelector('#open-account-emails').onclick = () => accountEmailsPage();
+    if (root.querySelector('#open-private-messages')) root.querySelector('#open-private-messages').onclick = () => privateMessagesPage();
   } catch (err) { login('Impossible de charger le tableau de bord : ' + (err.message || 'ERREUR_INCONNUE') + '.'); }
 }
 async function surveyPage() {
@@ -176,6 +311,79 @@ async function surveyPage() {
       link.href=url;link.download='fd-questionnaire-reponses-anonymes.csv';link.click();URL.revokeObjectURL(url);
     };
   } catch (err) { login('Impossible de charger les résultats : '+(err.message||'ERREUR_INCONNUE')+'.'); }
+}
+
+async function usersPage() {
+  try {
+    const { users = [], canAssignDelegate = false } = await call('/api/admin/users');
+    const rows = users.map(user => {
+      const role = ['admin','admin_delegate','editor','employee'].includes(user.role) ? user.role : 'employee';
+      const status = ['pending','active','suspended'].includes(user.status) ? user.status : 'pending';
+      const locked = ['contact@focom-iliad.fr','free-distri@focom-iliad.fr'].includes(user.email.toLowerCase()) || (!canAssignDelegate && ['admin','admin_delegate'].includes(role));
+      return '<tr><td><strong>' + esc(user.name || '—') + '</strong><small>' + esc(user.email) + '</small></td><td>' + (user.email_verified ? 'Vérifiée' : 'Non vérifiée') + '</td><td>' + (!canAssignDelegate && ['admin','admin_delegate'].includes(role) ? '<strong>' + (role === 'admin_delegate' ? 'Administrateur délégué' : 'Administrateur') + '</strong>' : '<select class="user-role" data-id="' + esc(user.id) + '"' + (locked ? ' disabled' : '') + '><option value="employee"' + (role === 'employee' ? ' selected' : '') + '>Salarié / adhérent</option><option value="editor"' + (role === 'editor' ? ' selected' : '') + '>Rédacteur</option>' + (canAssignDelegate ? '<option value="admin"' + (role === 'admin' ? ' selected' : '') + ' >Administrateur</option><option value="admin_delegate"' + (role === 'admin_delegate' ? ' selected' : '') + '>Administrateur délégué</option>' : '') + '</select>') + '</td><td><select class="user-status" data-id="' + esc(user.id) + '"' + (locked ? ' disabled' : '') + '><option value="pending"' + (status === 'pending' ? ' selected' : '') + '>En attente</option><option value="active"' + (status === 'active' ? ' selected' : '') + '>Actif</option><option value="suspended"' + (status === 'suspended' ? ' selected' : '') + '>Suspendu</option></select></td><td>' + (locked ? (['contact@focom-iliad.fr','free-distri@focom-iliad.fr'].includes(user.email.toLowerCase()) ? (user.email.toLowerCase() === 'contact@focom-iliad.fr' ? 'Compte principal protégé' : 'Compte administrateur historique protégé') : 'Compte privilégié protégé') : '<div class="admin-form-actions"><button class="button button-outline-dark user-save" data-id="' + esc(user.id) + '">Enregistrer</button><button class="button button-outline-dark user-reset" data-id="' + esc(user.id) + '" data-email="' + esc(user.email) + '">Envoyer un reset</button><button class="button button-outline-dark user-delete" data-id="' + esc(user.id) + '" data-email="' + esc(user.email) + '">Supprimer</button></div>') + '</td></tr>';
+    }).join('');
+    frame('<div class="admin-title-row"><div><span class="eyebrow">Gestion des accès</span><h1>Utilisateurs et rôles</h1><p>Consultez les comptes existants, attribuez un rôle et activez ou suspendez leur accès.</p></div><button id="logout" class="button button-outline-dark">Déconnexion</button></div><section class="admin-panel"><h2>Ajouter un utilisateur</h2><form id="user-create-form" class="admin-form-grid"><label>Nom et prénom<input name="name" maxlength="120" autocomplete="name" required></label><label>Adresse e-mail<input name="email" type="email" maxlength="254" autocomplete="email" required></label><label>Rôle<select name="role"><option value="employee">Salarié / adhérent</option><option value="editor">Rédacteur</option>' + (canAssignDelegate ? '<option value="admin">Administrateur</option><option value="admin_delegate">Administrateur délégué</option>' : '') + '</select></label><div class="admin-form-actions"><button class="button button-red" type="submit">Créer le compte</button></div></form><p class="admin-message" id="user-create-status" role="status">Le compte sera créé avec le statut « En attente ». Un e-mail de bienvenue précisera les prochaines étapes.</p></section><section class="admin-panel"><div class="admin-toolbar"><h2>' + users.length + ' compte(s)</h2><div class="admin-form-actions"><button id="back-dashboard" class="button button-outline-dark">← Tableau de bord</button><button id="refresh-users" class="button button-outline-dark">Actualiser</button></div></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Compte</th><th>E-mail</th><th>Rôle</th><th>État</th><th>Action</th></tr></thead><tbody>' + (rows || '<tr><td colspan="5">Aucun compte.</td></tr>') + '</tbody></table></div><p class="admin-message" id="users-status" role="status"></p><p class="admin-help">Les nouveaux comptes sont classés en attente par défaut. L’inscription publique reste désactivée. Le compte administrateur principal ne peut pas être modifié ici.</p></section>');
+    root.querySelector('#logout').onclick = async () => { await auth.signOut(); login('Vous êtes déconnecté.'); };
+    root.querySelector('#back-dashboard').onclick = () => dashboard();
+    root.querySelector('#refresh-users').onclick = () => usersPage();
+    root.querySelector('#user-create-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      const form = event.currentTarget, button = form.querySelector('button[type="submit"]');
+      const status = root.querySelector('#user-create-status');
+      const values = Object.fromEntries(new FormData(form).entries());
+      button.disabled = true; status.textContent = 'Création du compte…';
+      try {
+        const result = await call('/api/admin/users', { method: 'POST', body: JSON.stringify(values) });
+        status.textContent = result.emailSent ? 'Compte créé et placé en attente. Un e-mail de bienvenue a été envoyé ; l’utilisateur devra définir son mot de passe et attendre l’approbation FO.' : 'Compte créé et placé en attente, mais l’e-mail de bienvenue n’a pas pu être envoyé. Vérifiez la configuration Brevo.';
+        form.reset();
+        await usersPage();
+        const updatedStatus = root.querySelector('#user-create-status');
+        if (updatedStatus) updatedStatus.textContent = status.textContent;
+      } catch (err) {
+        status.textContent = 'Création impossible : ' + err.message;
+        button.disabled = false;
+      }
+    });
+    root.querySelectorAll('.user-delete').forEach(button => button.onclick = async () => {
+      const email = button.dataset.email || 'ce compte';
+      if (!window.confirm('Supprimer définitivement le compte ' + email + ' ?\\n\\nCette action est irréversible. Les articles, questionnaires et autres données du site ne seront pas supprimés.')) return;
+      button.disabled = true;
+      const status = root.querySelector('#users-status');
+      status.textContent = 'Suppression du compte…';
+      try {
+        const result = await call('/api/admin/users/' + encodeURIComponent(button.dataset.id), { method: 'DELETE' });
+        await usersPage();
+        const updatedStatus = root.querySelector('#users-status');
+        if (updatedStatus) updatedStatus.textContent = result.accessCleanupPending
+          ? 'Compte supprimé de Neon Auth ; le nettoyage de son autorisation doit être vérifié.'
+          : 'Le compte ' + email + ' a été supprimé.';
+      } catch (err) {
+        status.textContent = 'Suppression impossible : ' + err.message;
+        button.disabled = false;
+      }
+    });
+    root.querySelectorAll('.user-reset').forEach(button => button.onclick = async () => {
+      const email = button.dataset.email || '';
+      if (!email || !window.confirm('Envoyer un code de réinitialisation du mot de passe à ' + email + ' ?\\n\\nL’utilisateur recevra un code à usage unique et choisira lui-même son nouveau mot de passe.')) return;
+      button.disabled = true;
+      const status = root.querySelector('#users-status');
+      status.textContent = 'Envoi du code de réinitialisation…';
+      try {
+        const result = await auth.forgetPassword.emailOtp({ email });
+        if (result?.error) throw new Error(result.error.message || 'Envoi du code impossible.');
+        status.textContent = 'Demande de réinitialisation envoyée à ' + email + '. L’utilisateur doit consulter sa boîte de réception et suivre les instructions.';
+      } catch (err) {
+        status.textContent = 'Envoi du reset impossible : ' + (err.message || 'ERREUR_INCONNUE');
+        button.disabled = false;
+      }
+    });
+    root.querySelectorAll('.user-save').forEach(button => button.onclick = async () => {
+      const id = button.dataset.id, role = root.querySelector('.user-role[data-id="' + id + '"]').value, status = root.querySelector('.user-status[data-id="' + id + '"]').value;
+      button.disabled = true;
+      try { const result = await call('/api/admin/users/' + encodeURIComponent(id), { method: 'PATCH', body: JSON.stringify({ role, status }) }); root.querySelector('#users-status').textContent = result.activationEmailSent === true ? 'Rôle et état enregistrés. L’e-mail d’activation a été envoyé.' : result.activationEmailSent === false ? 'Compte activé, mais l’e-mail d’activation n’a pas pu être envoyé. Vérifiez la configuration Brevo.' : 'Rôle et état enregistrés.'; }
+      catch (err) { root.querySelector('#users-status').textContent = 'Modification impossible : ' + err.message; button.disabled = false; }
+    });
+  } catch (err) { login('Impossible de charger les utilisateurs : ' + (err.message || 'ERREUR_INCONNUE') + '.'); }
 }
 
 async function homepagePage(overrides = null) {
@@ -329,6 +537,68 @@ async function messages() {
     });
   } catch (err) { login('Impossible de charger les messages : ' + (err.message || 'ERREUR_INCONNUE') + '.'); }
 }
+async function privateMessagesPage(selectedId = '') {
+  try {
+    const data = await call('/api/admin/private-messages' + (selectedId ? '?with=' + encodeURIComponent(selectedId) : ''));
+    const contacts = data.contacts || [];
+    const selected = contacts.find(contact => contact.id === selectedId) || contacts[0] || null;
+    const messages = selected ? (selectedId ? data.messages : (await call('/api/admin/private-messages?with=' + encodeURIComponent(selected.id))).messages || []) : [];
+    for (const message of messages) {
+      if (message.recipient_id === currentAdmin?.id && !message.read_at) {
+        await call('/api/admin/private-messages/' + encodeURIComponent(message.id) + '/read', { method: 'POST' });
+      }
+    }
+    const unreadSummary = await call('/api/admin/private-messages?summary=1');
+    const unreadCount = Number(unreadSummary.unreadCount || 0);
+    const options = contacts.map(contact => '<option value="' + esc(contact.id) + '"' + (selected && contact.id === selected.id ? ' selected' : '') + '>' + esc(contact.name || contact.email) + ' — ' + esc(contact.email) + '</option>').join('');
+    const thread = messages.map(message => {
+      const mine = message.sender_id === currentAdmin?.id;
+      const deleteAction = ['admin','admin_delegate'].includes(currentAdmin?.role)
+        ? '<button type="button" class="private-message-delete" data-message-id="' + esc(message.id) + '" aria-label="Supprimer ce message">Supprimer</button>'
+        : '';
+      return '<article class="private-message ' + (mine ? 'is-mine' : 'is-theirs') + '"><p>' + esc(message.body) + '</p><small>' + (mine ? 'Vous' : esc(selected?.name || selected?.email || 'Correspondant')) + ' · ' + esc(new Date(message.created_at).toLocaleString('fr-FR')) + '</small>' + deleteAction + '</article>';
+    }).join('') || '<p class="admin-help">Aucun message dans cette conversation. Vous pouvez commencer à écrire.</p>';
+    frame('<div class="admin-title-row"><div><span class="eyebrow">Échanges internes</span><h1>Messagerie</h1><p>Échangez en privé avec les autres comptes actifs du site.</p><p class="private-unread-summary" role="status">' + (unreadCount > 0 ? '<span class="private-unread-badge">' + unreadCount + '</span> message(s) non lu(s)' : 'Aucun message non lu') + '</p></div><button id="logout" class="button button-outline-dark">Déconnexion</button></div><section class="admin-panel"><div class="admin-toolbar"><h2>Nouvelle conversation</h2><button id="back-dashboard" class="button button-outline-dark">← Tableau de bord</button></div><label>Destinataire<select id="private-recipient"><option value="">Choisir un destinataire</option>' + options + '</select></label><div id="private-thread" class="private-thread">' + thread + '</div>' + (selected ? '<form id="private-send" class="admin-form-grid"><label>Votre message<textarea name="body" rows="3" maxlength="5000" required placeholder="Écrivez votre message…"></textarea></label><div class="admin-form-actions"><button class="button button-red" type="submit">Envoyer</button></div></form>' : '<p class="admin-help">Aucun autre compte actif n’est disponible pour le moment.</p>') + '<p id="private-status" class="admin-message" role="status"></p></section>');
+    root.querySelector('#logout').onclick = async () => { await auth.signOut(); currentAdmin = null; login('Vous êtes déconnecté.'); };
+    root.querySelector('#back-dashboard').onclick = () => dashboard();
+    root.querySelector('#private-recipient').onchange = event => privateMessagesPage(event.target.value);
+    const form = root.querySelector('#private-send');
+    if (form) form.addEventListener('submit', async event => {
+      event.preventDefault();
+      const button = form.querySelector('button[type="submit"]');
+      const body = form.elements.body.value.trim();
+      if (!body) return;
+      button.disabled = true;
+      try {
+        await call('/api/admin/private-messages', { method: 'POST', body: JSON.stringify({ recipient_id: selected.id, body }) });
+        await privateMessagesPage(selected.id);
+      } catch (error) {
+        root.querySelector('#private-status').textContent = 'Envoi impossible : ' + error.message;
+        button.disabled = false;
+      }
+    });
+    root.querySelectorAll('.private-message-delete').forEach(button => {
+      button.addEventListener('click', async () => {
+        if (!confirm('Supprimer définitivement ce message ? Cette action est irréversible.')) return;
+        button.disabled = true;
+        try {
+          await call('/api/admin/private-messages/' + encodeURIComponent(button.dataset.messageId), { method: 'DELETE' });
+          await privateMessagesPage(selected.id);
+        } catch (error) {
+          const status = root.querySelector('#private-status');
+          if (status) status.textContent = 'Suppression impossible : ' + error.message;
+          button.disabled = false;
+        }
+      });
+    });
+    const threadNode = root.querySelector('#private-thread');
+    if (threadNode) threadNode.scrollTop = threadNode.scrollHeight;
+  } catch (error) {
+    frame('<section class="admin-panel"><h1>Messagerie indisponible</h1><p>' + esc(error.message) + '</p><button id="back-dashboard" class="button button-outline-dark">← Retour</button></section>');
+    root.querySelector('#back-dashboard').onclick = () => dashboard();
+  }
+}
+
 function editor(a = {}) {
   const el = root.querySelector('#editor'); el.hidden = false;
   el.innerHTML = '<div class="admin-toolbar"><h2>' + (a.id ? 'Modifier' : 'Nouvel') + ' article</h2><button id="close" class="text-button">Fermer</button></div><form id="article-form" class="article-form"><input type="hidden" name="id" value="' + esc(a.id || '') + '"><label>Titre<input name="title" maxlength="180" required value="' + esc(a.title || '') + '"></label><label>Slug<input name="slug" maxlength="180" value="' + esc(a.slug || '') + '"></label><label>Catégorie<input name="category" maxlength="80" value="' + esc(a.category || 'Actualités') + '"></label><label>Résumé<textarea name="excerpt" maxlength="320" rows="2">' + esc(a.excerpt || '') + '</textarea></label><label>Contenu<div class="article-format-toolbar" aria-label="Mise en forme du contenu"><button type="button" data-format="**|**" title="Gras"><strong>G</strong></button><button type="button" data-format="*|*" title="Italique"><em>I</em></button><button type="button" data-prefix="## " title="Titre">Titre</button><button type="button" data-prefix="- " title="Liste à puces">• Liste</button><button type="button" data-prefix="1. " title="Liste numérotée">1. Liste</button><button type="button" data-prefix="> " title="Citation">Citation</button><span>Raccourcis : **gras**, *italique*, ## titre, - liste, [lien](https://…)</span></div><textarea name="content" rows="14" required>' + esc(a.content || '') + '</textarea></label><label>Image (URL HTTPS)<input name="cover_image_url" type="url" value="' + esc(a.cover_image_url || '') + '"></label><button type="button" id="choose-media" class="button button-outline-dark">Choisir dans la médiathèque</button><div class="admin-form-actions"><button type="button" id="preview-toggle" class="button button-outline-dark">Aperçu de l’article</button><button class="button button-outline-dark" name="status" value="draft">Enregistrer le brouillon</button><button class="button button-red" name="status" value="published">Publier</button>' + (a.id ? '<button type="button" id="archive" class="text-button">Archiver</button>' : '') + '</div><p class="admin-message" role="status"></p></form><section id="article-preview" class="article-preview" hidden aria-live="polite"><div class="preview-heading"><span class="eyebrow">Prévisualisation · non publiée</span><span class="preview-status">Visible uniquement ici</span></div><article class="preview-article"><img class="preview-cover" alt="" hidden><span class="preview-category"></span><h1 class="preview-title"></h1><p class="preview-excerpt"></p><div class="preview-content"></div></article></section>';
@@ -398,5 +668,6 @@ function editor(a = {}) {
 }
 if (location.pathname === '/admin' || location.pathname === '/admin/') {
   if (new URLSearchParams(location.search).has('reset-password')) passwordReset();
+  else if (new URLSearchParams(location.search).has('set-password')) initialPasswordSetup();
   else dashboard();
 }
