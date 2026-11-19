@@ -692,10 +692,10 @@ async function handleAdmin(request, env, url, origin) {
     const targetId = deleteUserMatch[1];
     if (targetId === admin.id) return json({ error: "CANNOT_DELETE_SELF", message: "Vous ne pouvez pas supprimer votre propre compte." }, 403, origin);
     const target = await withDatabase(env, db => db.query(
-      'SELECT id, email FROM neon_auth."user" WHERE id=$1 LIMIT 1', [targetId]
+      'SELECT u.id, u.email, COALESCE(a.role, CASE WHEN lower(u.email)=lower($2) THEN 'admin' ELSE 'employee' END) AS role FROM neon_auth."user" u LEFT JOIN public.site_user_access a ON a.user_id=u.id WHERE u.id=$1 LIMIT 1', [targetId, ADMIN_EMAIL]
     ));
     if (!target.rows.length) return json({ error: "USER_NOT_FOUND" }, 404, origin);
-    if (isAdminDelegate && String(target.rows[0].email || "").toLowerCase() === ADMIN_EMAIL.toLowerCase()) return json({ error: "SUPER_ADMIN_PROTECTED" }, 403, origin);
+    if (isAdminDelegate && (String(target.rows[0].email || "").toLowerCase() === ADMIN_EMAIL.toLowerCase() || ["admin", "admin_delegate"].includes(target.rows[0].role))) return json({ error: "PRIVILEGED_ACCOUNT_PROTECTED" }, 403, origin);
     if (String(target.rows[0].email || "").toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
       return json({ error: "PROTECTED_ACCOUNT", message: "Le compte administrateur principal est protégé." }, 403, origin);
     }
