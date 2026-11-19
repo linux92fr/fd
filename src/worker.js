@@ -614,8 +614,7 @@ async function handleAdmin(request, env, url, origin) {
     const name = url.searchParams.get("name") || "";
     const email = renderAccountEmail(type, name);
     if (!email) return json({ error: "INVALID_EMAIL_TEMPLATE" }, 400, origin);
-    return json({ previewOnly: true, sender: { name: "FO Free Distribution", email: "no-reply@focom-iliad.fr" }, ...email }, 200, origin);
-        replyTo: { email: "contact@focom-iliad.fr" },
+    return json({ previewOnly: true, sender: { name: "FO Free Distribution", email: "no-reply@focom-iliad.fr" }, replyTo: { email: "contact@focom-iliad.fr" }, ...email }, 200, origin);
   }
   const isEditor = admin.role === "editor";
   const editorAllowed = url.pathname === "/api/admin/articles" || url.pathname === "/api/admin/overview" || /^\/api\/admin\/articles\/\d+$/.test(url.pathname);
