@@ -467,7 +467,8 @@ async function verifyNeonWebhook(rawBody, headers, env) {
   catch { throw new Error("WEBHOOK_SIGNATURE_HEADER_INVALID"); }
   if (protectedHeader.alg !== "EdDSA") throw new Error("WEBHOOK_SIGNATURE_ALGORITHM_INVALID");
 
-  const authConfig = getNeonAuthConfig(env);\n  const jwksResponse = await fetch(authConfig.baseUrl + "/.well-known/jwks.json", {
+  const authConfig = getNeonAuthConfig(env);
+  const jwksResponse = await fetch(authConfig.baseUrl + "/.well-known/jwks.json", {
     headers: { "accept": "application/json" },
     cf: { cacheTtl: 300, cacheEverything: true },
   });
