@@ -737,6 +737,7 @@ async function handleAdmin(request, env, url, origin) {
       );
       if (!target.rows[0]) return { missing: true };
       if (target.rows[0].email.toLowerCase() === ADMIN_EMAIL.toLowerCase() && (role !== "admin" || status !== "active")) return { protected: true };
+      if (userId === admin.id && (role !== "admin" || status !== "active")) return { selfProtected: true };
       await db.query(
         `INSERT INTO public.site_user_access (user_id, role, status, approved_by, approved_at, updated_at)
          VALUES ($1, $2, $3, $4, CASE WHEN $3 = 'active' THEN now() ELSE NULL END, now())
