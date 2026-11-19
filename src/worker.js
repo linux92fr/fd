@@ -132,6 +132,26 @@ async function handleNewsletterSubscribe(request, env) {
   }
 }
 
+async function contactRateLimit(request, env) {
+  const clientIp = request.headers.get("CF-Connecting-IP");
+  if (!clientIp) return { allowed: false, unavailable: true };
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(clientIp));
+  const ipHash = [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, "0")).join("");
+  return withDatabase(env, async db => {
+    const result = await db.query(
+      `INSERT INTO public.contact_rate_limits(ip_hash,window_started_at,attempts)
+       VALUES($1,NOW(),1)
+       ON CONFLICT(ip_hash) DO UPDATE
+       SET attempts=CASE WHEN public.contact_rate_limits.window_started_at < NOW()-INTERVAL '15 minutes' THEN 1 ELSE public.contact_rate_limits.attempts+1 END,
+           window_started_at=CASE WHEN public.contact_rate_limits.window_started_at < NOW()-INTERVAL '15 minutes' THEN NOW() ELSE public.contact_rate_limits.window_started_at END
+       RETURNING attempts`,
+      [ipHash]
+    );
+    await db.query("DELETE FROM public.contact_rate_limits WHERE window_started_at < NOW()-INTERVAL '1 day'");
+    return { allowed: Number(result.rows[0]?.attempts || 0) <= 3 };
+  });
+}
+
 async function handleContact(request, env) {
   const origin = request.headers.get("Origin") || "";
   if (!allowedOrigins.has(origin)) return json({ error: "INVALID_ORIGIN" }, 403, origin);
@@ -145,6 +165,14 @@ async function handleContact(request, env) {
     return json({ ok: true, message: "Votre message a bien été envoyé." }, 200, origin);
   }
 
+  try {
+    const limit = await contactRateLimit(request, env);
+    if (limit.unavailable) return json({ error: "RATE_LIMIT_UNAVAILABLE", message: "Le formulaire est temporairement indisponible. Merci de réessayer." }, 503, origin);
+    if (!limit.allowed) return json({ error: "TOO_MANY_REQUESTS", message: "Vous avez atteint la limite de 3 messages en 15 minutes. Merci de réessayer plus tard." }, 429, origin);
+  } catch (error) {
+    console.error("Contact rate limit failed:", error?.code || error?.name || "unknown");
+    return json({ error: "RATE_LIMIT_UNAVAILABLE", message: "Le formulaire est temporairement indisponible. Merci de réessayer." }, 503, origin);
+  }
   const name = typeof body.name === "string" ? body.name.trim() : "";
   const email = typeof body.email === "string" ? body.email.trim() : "";
   const subject = typeof body.subject === "string" ? body.subject.trim() : "";
