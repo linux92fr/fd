@@ -749,6 +749,7 @@ async function handleAdmin(request, env, url, origin) {
     });
     if (result.missing) return json({ error: "USER_NOT_FOUND" }, 404, origin);
     if (result.protected) return json({ error: "SUPER_ADMIN_PROTECTED" }, 403, origin);
+    if (result.selfProtected) return json({ error: "CANNOT_CHANGE_OWN_ADMIN_ACCESS", message: "Un administrateur ne peut pas rétrograder ou suspendre son propre compte." }, 403, origin);
     const activationEmailSent = result.activated ? await sendAccountEmail(env, result.email, result.name, "activation") : null;
     return json({ success: true, activationEmailSent }, 200, origin);
   }
