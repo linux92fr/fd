@@ -9,8 +9,10 @@ on:
       - feat/content-questionnaire-editor
       - feat/admin-header-shortcut
       - fix/admin-header-gear
+      - feature/public-construction-access
     paths:
       - "src/**"
+      - "database/migrations/**"
       - "public/**"
       - "index.html"
       - "package.json"
