@@ -216,8 +216,16 @@ document.querySelector('#app').innerHTML = `
       <span class="brand-copy"><strong>FOCOM</strong><b><em>Free</em> Distribution</b><small>Le syndicat des salariés de Free Distribution</small></span>
     </a>
     <button class="menu-toggle" aria-label="Ouvrir le menu" aria-expanded="false">☰</button>
-    <nav class="main-nav" aria-label="Navigation principale">
-      ${nav.map(([label, href]) => `<a href="${href}">${label}</a>`).join('')}
+    <nav class="main-nav" aria-label="Navigation principale" aria-hidden="true">
+      <button class="menu-backdrop" type="button" aria-label="Fermer le menu"></button>
+      <div class="mobile-menu-panel">
+        <div class="mobile-menu-heading">
+          <span>Navigation</span>
+          <button class="menu-close" type="button" aria-label="Fermer le menu">×</button>
+        </div>
+        ${nav.map(([label, href]) => `<a href="${href}">${label}<span aria-hidden="true">→</span></a>`).join('')}
+        <p class="mobile-menu-footer">FO COM · Free Distribution</p>
+      </div>
     </nav>
   </header>
 
@@ -510,14 +518,23 @@ if (newsletterForm) {
 
 const toggle = document.querySelector('.menu-toggle');
 const menu = document.querySelector('.main-nav');
-toggle.addEventListener('click', () => {
-  const open = menu.classList.toggle('is-open');
-  toggle.setAttribute('aria-expanded', String(open));
-});
-menu.querySelectorAll('a').forEach(link => link.addEventListener('click', () => {
+const closeMenu = () => {
   menu.classList.remove('is-open');
+  menu.setAttribute('aria-hidden', 'true');
   toggle.setAttribute('aria-expanded', 'false');
-}));
+  document.body.classList.remove('mobile-menu-open');
+};
+const openMenu = () => {
+  menu.classList.add('is-open');
+  menu.setAttribute('aria-hidden', 'false');
+  toggle.setAttribute('aria-expanded', 'true');
+  document.body.classList.add('mobile-menu-open');
+  menu.querySelector('.menu-close')?.focus();
+};
+toggle.addEventListener('click', () => menu.classList.contains('is-open') ? closeMenu() : openMenu());
+menu.querySelectorAll('.menu-backdrop, .menu-close').forEach(button => button.addEventListener('click', closeMenu));
+menu.querySelectorAll('a').forEach(link => link.addEventListener('click', closeMenu));
+document.addEventListener('keydown', event => { if (event.key === 'Escape' && menu.classList.contains('is-open')) { closeMenu(); toggle.focus(); } });
 
 // Public articles are served by the Worker; draft and archived content never reaches this page.
 const articlesList = document.querySelector('#articles-list');
