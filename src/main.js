@@ -215,6 +215,7 @@ document.querySelector('#app').innerHTML = `
       <img class="brand-logo" src="/logo-focom-fond-rouge.png" alt="FOCOM">
       <span class="brand-copy"><strong>FOCOM</strong><b><em>Free</em> Distribution</b><small>Le syndicat des salariés de Free Distribution</small></span>
     </a>
+    <a class="button button-red header-login" href="/admin.html">Connexion</a>
     <button class="menu-toggle" aria-label="Ouvrir le menu" aria-expanded="false">☰</button>
     <nav class="main-nav" aria-label="Navigation principale" aria-hidden="true">
       <button class="menu-backdrop" type="button" aria-label="Fermer le menu"></button>
