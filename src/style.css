@@ -1346,3 +1346,23 @@ body:has(.hero) .contact-section{padding-top:48px;padding-bottom:48px}
     background: transparent !important;
   }
 }
+
+
+/* Desktop header order: brand, horizontal navigation, then login at the far right. */
+@media (min-width: 1001px) {
+  header.site-header .brand { order: 1; }
+  header.site-header .main-nav,
+  header.site-header .main-nav.is-open {
+    order: 2;
+    margin-left: 0 !important;
+    margin-right: auto;
+  }
+  header.site-header .public-account-tools {
+    order: 3;
+    flex: 0 0 auto;
+    margin-left: auto !important;
+    margin-right: 0;
+    width: auto;
+    padding: 0;
+  }
+}
