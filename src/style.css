@@ -1260,3 +1260,109 @@ body:has(.hero) .contact-section{padding-top:48px;padding-bottom:48px}
   }
   .site-header .brand-copy small { display: none; }
 }
+
+
+/* Restore the full horizontal navigation on desktop; the drawer is mobile-only. */
+@media (min-width: 1001px) {
+  header.site-header {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: clamp(16px, 2vw, 30px);
+  }
+  header.site-header .menu-toggle {
+    display: none !important;
+  }
+  header.site-header .main-nav,
+  header.site-header .main-nav.is-open {
+    position: static !important;
+    inset: auto !important;
+    display: flex !important;
+    flex: 0 1 auto;
+    align-items: center;
+    justify-content: flex-end;
+    gap: clamp(12px, 1.45vw, 23px);
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 0 0 auto;
+    padding: 0 !important;
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    transform: none !important;
+  }
+  header.site-header .main-nav .menu-backdrop,
+  header.site-header .main-nav .mobile-menu-heading,
+  header.site-header .main-nav .menu-close,
+  header.site-header .main-nav .mobile-menu-footer {
+    display: none !important;
+  }
+  header.site-header .main-nav .mobile-menu-panel {
+    position: static !important;
+    display: contents !important;
+    width: auto !important;
+    height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    transform: none !important;
+  }
+  header.site-header .main-nav a,
+  header.site-header .main-nav.is-open a {
+    display: inline-flex !important;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 8px 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: #41434a;
+    font-size: clamp(11px, .9vw, 13px);
+    font-weight: 700;
+    line-height: 1.25;
+    white-space: nowrap;
+    opacity: 1 !important;
+    transform: none !important;
+    animation: none !important;
+  }
+  header.site-header .main-nav a span {
+    display: none !important;
+  }
+  header.site-header .main-nav a:hover,
+  header.site-header .main-nav a:focus-visible {
+    color: var(--red);
+    background: transparent !important;
+  }
+}
+
+
+/* Desktop header order: brand, horizontal navigation, then login at the far right. */
+@media (min-width: 1001px) {
+  header.site-header .brand { order: 1; }
+  header.site-header .main-nav,
+  header.site-header .main-nav.is-open {
+    order: 2;
+    margin-left: 0 !important;
+    margin-right: auto;
+  }
+  header.site-header .public-account-tools {
+    order: 3;
+    flex: 0 0 auto;
+    margin-left: auto !important;
+    margin-right: 0;
+    width: auto;
+    padding: 0;
+  }
+}
