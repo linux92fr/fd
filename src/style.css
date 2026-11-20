@@ -1006,3 +1006,17 @@ body:has(.hero) .contact-section{padding-top:48px;padding-bottom:48px}
 .public-admin-shortcut svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .public-admin-shortcut:hover,.public-admin-shortcut:focus-visible{background:#fff7f8;border-color:#d9a0aa;color:#b42336}
 .public-admin-shortcut:focus-visible{outline:3px solid rgba(200,16,46,.2);outline-offset:2px}
+
+
+/* Actualités : cartes cohérentes quelle que soit la taille des visuels */
+.article-grid{align-items:stretch}
+.article-card{display:flex;flex-direction:column;align-items:stretch;min-width:0;overflow:hidden;min-height:296px}
+.article-card-image{display:block;width:calc(100% + 52px);max-width:calc(100% + 52px);height:auto;aspect-ratio:16/9;object-fit:cover;flex:0 0 auto;margin:-26px -26px 18px}
+.article-card .article-category{margin-bottom:10px}
+.article-card h3{font-size:18px;line-height:1.35;overflow-wrap:anywhere}
+.article-card p{font-size:13px;line-height:1.6;overflow-wrap:anywhere}
+.article-card time{margin-top:auto;padding-top:8px}
+.article-card-more{display:block;margin-top:4px;font-size:13px;font-weight:600}
+.article-grid.is-expanded{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:1000px){.article-grid.is-expanded{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.article-grid.is-expanded{grid-template-columns:1fr}}
