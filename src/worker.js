@@ -775,7 +775,7 @@ async function handleAdmin(request, env, url, origin) {
     let body;try{body=await request.json()}catch{return json({error:"INVALID_JSON"},400,origin)}
     const password=typeof body.password==="string"?body.password:"";
     if(password.length<12||password.length>128||!/[a-z]/.test(password)||!/[A-Z]/.test(password)||!/[0-9]/.test(password)||!/[^A-Za-z0-9]/.test(password))return json({error:"WEAK_PASSWORD",message:"Le mot de passe doit contenir au moins 12 caractères, une minuscule, une majuscule, un chiffre et un caractère spécial."},400,origin);
-    const salt=crypto.getRandomValues(new Uint8Array(16)),iterations=310000,hash=await deriveSitePassword(password,salt,iterations);
+    const salt=crypto.getRandomValues(new Uint8Array(16)),iterations=100000,hash=await deriveSitePassword(password,salt,iterations);
     await env.SURVEYS_DB.prepare("INSERT INTO site_access_config(id,password_salt,password_hash,iterations,updated_at,updated_by) VALUES(1,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET password_salt=excluded.password_salt,password_hash=excluded.password_hash,iterations=excluded.iterations,updated_at=excluded.updated_at,updated_by=excluded.updated_by").bind(b64url(salt),b64url(hash),iterations,new Date().toISOString(),admin.id).run();
     return json({ok:true},200,origin);
   }
@@ -1373,7 +1373,7 @@ const SITE_ACCESS_EXEMPT_PATHS = new Set(["/admin","/admin/","/acces","/api/site
 function b64url(bytes){let s="";for(const b of bytes)s+=String.fromCharCode(b);return btoa(s).replace(/=/g,"").replace(/\+/g,"-").replace(/\//g,"_")}
 function unb64url(s){s=s.replace(/-/g,"+").replace(/_/g,"/");const b=atob(s+"=".repeat((4-s.length%4)%4));return Uint8Array.from(b,c=>c.charCodeAt(0))}
 async function accessSign(payload,secret){const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);return new Uint8Array(await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(payload)))}
-async function deriveSitePassword(password,salt,iterations=310000){const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(password),"PBKDF2",false,["deriveBits"]);return new Uint8Array(await crypto.subtle.deriveBits({name:"PBKDF2",hash:"SHA-256",salt,iterations},key,256))}
+async function deriveSitePassword(password,salt,iterations=100000){const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(password),"PBKDF2",false,["deriveBits"]);return new Uint8Array(await crypto.subtle.deriveBits({name:"PBKDF2",hash:"SHA-256",salt,iterations},key,256))}
 function equalBytes(a,b){if(a.length!==b.length)return false;let d=0;for(let i=0;i<a.length;i++)d|=a[i]^b[i];return d===0}
 async function configuredSitePassword(env){const row=await env.SURVEYS_DB?.prepare("SELECT password_salt,password_hash,iterations,updated_at FROM site_access_config WHERE id=1").first();return row||null}
 async function verifySitePassword(password,env){const row=await configuredSitePassword(env);if(row){try{return equalBytes(await deriveSitePassword(password,unb64url(row.password_salt),Number(row.iterations)||310000),unb64url(row.password_hash))}catch{return false}}const legacy=String(env.SITE_ACCESS_PASSWORD||"");if(!legacy)return false;const enc=new TextEncoder(),[a,b]=await Promise.all([crypto.subtle.digest("SHA-256",enc.encode(password)),crypto.subtle.digest("SHA-256",enc.encode(legacy))]);return equalBytes(new Uint8Array(a),new Uint8Array(b))}
