@@ -1370,13 +1370,14 @@ export default {
     const url = new URL(request.url);
     const origin = request.headers.get("Origin") || "";
     const isAdminPath=url.pathname==="/admin"||url.pathname==="/admin/"||url.pathname.startsWith("/api/admin/");
+    const isStaticAsset=url.pathname.startsWith("/assets/")||url.pathname==="/favicon.ico"||url.pathname==="/favicon.svg";
     const accessResponse = await handleSiteAccess(request, env, url);
     if (accessResponse) return accessResponse;
-    if (!isAdminPath && !SITE_ACCESS_EXEMPT_PATHS.has(url.pathname) && !await hasSiteAccess(request, env)) {
+    if (!isAdminPath && !isStaticAsset && !SITE_ACCESS_EXEMPT_PATHS.has(url.pathname) && !await hasSiteAccess(request, env)) {
       if (url.pathname.startsWith("/api/")) return json({ error: "SITE_ACCESS_REQUIRED" }, 401, origin);
       return constructionPage();
     }
-    if(!isAdminPath && !url.pathname.startsWith("/api/") && !SITE_ACCESS_EXEMPT_PATHS.has(url.pathname) && env.SURVEYS_DB){
+    if(!isAdminPath && !isStaticAsset && !url.pathname.startsWith("/api/") && !SITE_ACCESS_EXEMPT_PATHS.has(url.pathname) && env.SURVEYS_DB){
       try{
         const maintenance=await env.SURVEYS_DB.prepare("SELECT enabled,starts_at,ends_at,message FROM site_maintenance WHERE id=1").first();
         const now=Date.now(),start=maintenance?.starts_at?Date.parse(maintenance.starts_at):-Infinity,end=maintenance?.ends_at?Date.parse(maintenance.ends_at):Infinity;
