@@ -37,7 +37,7 @@ function installBackToTop() {
   button.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
 }
 
-if (/^\/admin(?:\.html)?\/?$/.test(location.pathname)) {
+if (/^\/admin\/?$/.test(location.pathname)) {
   import('./admin.js');
 } else if (/^\/contact\/?$/.test(location.pathname)) {
   document.querySelector('#app').innerHTML = `
