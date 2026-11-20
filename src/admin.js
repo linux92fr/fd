@@ -278,7 +278,7 @@ async function dashboard() {
       (canManage ? '<article class="admin-stat"><span>Messages reçus</span><strong>' + Number(overview.messages_total || 0) + '</strong><small>' + Number(overview.messages_new || 0) + ' nouveaux · ' + Number(overview.messages_in_progress || 0) + ' en cours</small></article><article class="admin-stat"><span>Messages traités</span><strong>' + Number(overview.messages_resolved || 0) + '</strong><small>Demandes marquées comme traitées</small></article>' : '') + '</div></section>' +
       '<section class="admin-module-section"><div class="admin-section-heading"><span class="admin-section-number">01</span><div><h2>Gestion du site</h2><p>Organisez les contenus et les rubriques visibles par les salariés.</p></div></div><div class="admin-module-grid">' +
       (canWrite ? tile('open-articles','Aa','Actualités','Créer, classer et publier les articles') : '') +
-      (canManage ? tile('open-homepage','⌂','Page d’accueil','Textes, visuels et aperçu de la page') + tile('open-survey','▤','Questionnaire','Consulter les réponses et les statistiques') + tile('open-maintenance','◷','Maintenance du site','Programmer ou activer une page de maintenance') : '') + (canWrite ? tile('open-content','§','Revendications et droits','Modifier les contenus, organiser les rubriques et prévisualiser') : '') +
+      (canManage ? tile('open-homepage','⌂','Page d’accueil','Textes, visuels et aperçu de la page') + tile('open-survey','▤','Questionnaire','Consulter les réponses et les statistiques') + tile('open-maintenance','◷','Maintenance du site','Programmer ou activer une page de maintenance') + tile('open-site-password','🔐','Mot de passe du site','Modifier le mot de passe commun d’accès') : '') + (canWrite ? tile('open-content','§','Revendications et droits','Modifier les contenus, organiser les rubriques et prévisualiser') : '') +
       '</div></section>' +
       (canManage ? '<section class="admin-module-section"><div class="admin-section-heading"><span class="admin-section-number">02</span><div><h2>Communication</h2><p>Suivez les échanges avec les salariés et les campagnes d’information.</p></div></div><div class="admin-module-grid">' +
       tile('open-messages','✉','Messages reçus','Demandes envoyées depuis le formulaire') +
@@ -299,11 +299,22 @@ async function dashboard() {
     const routes = {
       'open-articles': articlesPage, 'open-messages': messages, 'open-survey': surveyPage,
       'open-media': mediaPage, 'open-homepage': homepagePage, 'open-newsletter': () => newsletterPage({ call, frame, root, dashboard }),
-      'open-maintenance': maintenancePageAdmin,
+      'open-maintenance': maintenancePageAdmin, 'open-site-password': siteAccessPasswordPage,
       'open-users': usersPage, 'open-account-emails': accountEmailsPage, 'open-private-messages': () => privateMessagesPage(), 'open-mailbox': () => window.open('https://webmail.amen.fr/', '_blank', 'noopener,noreferrer'), 'open-content': siteContentPage
     };
     for (const [id, handler] of Object.entries(routes)) root.querySelector('#' + id)?.addEventListener('click', handler);
   } catch (err) { login('Impossible de charger le tableau de bord : ' + (err.message || 'ERREUR_INCONNUE') + '.'); }
+}
+
+async function siteAccessPasswordPage(){
+  try{
+    const state=await call('/api/admin/site-access-password');
+    frame('<div class="admin-title-row"><div><span class="eyebrow">Sécurité du site</span><h1>Mot de passe d’accès</h1><p>Modifiez le mot de passe commun demandé aux visiteurs avant d’accéder au site complet.</p></div><button id="back-dashboard" class="button button-outline-dark">← Tableau de bord</button></div><section class="admin-panel"><p class="admin-hint">'+(state.managedInDashboard?'Le mot de passe est actuellement géré depuis le tableau de bord.':'Le mot de passe actuel est encore défini dans les secrets Cloudflare. Le premier enregistrement ici prendra le relais.')+'</p><form id="site-password-form"><label>Nouveau mot de passe<div style="display:flex;gap:.5rem"><input name="password" type="password" minlength="12" maxlength="128" autocomplete="new-password" required style="flex:1"><button type="button" id="toggle-site-password" class="button button-outline-dark" style="width:auto;margin:0">Afficher</button></div></label><label>Confirmer le nouveau mot de passe<input name="confirmation" type="password" minlength="12" maxlength="128" autocomplete="new-password" required></label><ul class="admin-help"><li>12 caractères minimum</li><li>Au moins une minuscule et une majuscule</li><li>Au moins un chiffre et un caractère spécial</li></ul><p class="admin-hint">Le mot de passe est enregistré sous forme de hash PBKDF2 salé. Il n’est jamais affiché après enregistrement. Les sessions d’accès existantes seront invalidées.</p><button class="button button-red" type="submit">Enregistrer le nouveau mot de passe</button><p id="site-password-status" class="admin-message" role="status"></p></form></section>');
+    root.querySelector('#back-dashboard').onclick=()=>dashboard();
+    const form=root.querySelector('#site-password-form'),password=form.elements.password,confirmation=form.elements.confirmation,status=root.querySelector('#site-password-status');
+    root.querySelector('#toggle-site-password').onclick=()=>{const show=password.type==='password';password.type=confirmation.type=show?'text':'password';root.querySelector('#toggle-site-password').textContent=show?'Masquer':'Afficher';};
+    form.onsubmit=async e=>{e.preventDefault();if(password.value!==confirmation.value){status.textContent='Les deux mots de passe ne correspondent pas.';return;}const button=form.querySelector('button[type="submit"]');button.disabled=true;status.textContent='Enregistrement sécurisé…';try{await call('/api/admin/site-access-password',{method:'PUT',body:JSON.stringify({password:password.value})});form.reset();status.textContent='Mot de passe modifié. Les anciennes sessions sont invalidées.';}catch(err){status.textContent=err.message||'Modification impossible.';}finally{button.disabled=false;}};
+  }catch(err){frame('<section class="admin-panel"><h1>Mot de passe du site</h1><p>'+esc(err.message||'Impossible de charger les paramètres.')+'</p><button id="back-dashboard" class="button button-outline-dark">← Retour</button></section>');root.querySelector('#back-dashboard').onclick=()=>dashboard();}
 }
 
 async function maintenancePageAdmin(){
