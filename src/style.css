@@ -915,3 +915,85 @@ body.newsletter-popup-open{overflow:hidden}
   .main-nav.is-open{right:12px;width:min(90vw,340px);gap:3px;padding:8px}
   .main-nav.is-open a{min-height:38px;padding:8px;font-size:12px}
 }
+
+
+/* Mobile header sizing and menu placement: prevent logo height and nav overlap. */
+@media(max-width:1000px){
+  .site-header{
+    position:sticky;
+    top:0;
+    z-index:30;
+    display:flex;
+    flex-wrap:nowrap;
+    align-items:center;
+    min-height:0;
+    height:auto;
+    padding:8px 14px;
+    gap:10px;
+  }
+  .site-header .brand{
+    flex:1 1 auto;
+    min-width:0;
+    gap:8px;
+  }
+  .site-header .brand-logo{
+    display:block;
+    flex:0 0 38px;
+    width:38px;
+    height:38px;
+    max-width:38px;
+    object-fit:contain;
+  }
+  .site-header .brand-copy{min-width:0}
+  .site-header .brand-copy strong{font-size:14px;line-height:1.05}
+  .site-header .brand-copy b{font-size:13px;line-height:1.05}
+  .site-header .brand-copy small{font-size:7px;line-height:1.15;margin-top:3px}
+  .site-header .menu-toggle{
+    display:grid;
+    flex:0 0 40px;
+    place-items:center;
+    width:40px;
+    height:40px;
+    padding:0;
+    margin:0;
+    font-size:23px;
+    line-height:1;
+  }
+  .site-header .main-nav.is-open{
+    position:absolute;
+    top:calc(100% + 6px);
+    right:12px;
+    left:auto;
+    z-index:31;
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:4px 8px;
+    width:min(88vw,360px);
+    max-height:calc(100dvh - 84px);
+    overflow-y:auto;
+    padding:10px;
+    border:1px solid var(--line);
+    border-radius:12px;
+    background:#fff;
+    box-shadow:0 12px 32px rgba(20,20,30,.16);
+  }
+  .site-header .main-nav.is-open a{
+    display:flex;
+    align-items:center;
+    min-height:38px;
+    padding:8px 9px;
+    border-radius:7px;
+    font-size:12px;
+    line-height:1.25;
+  }
+}
+@media(max-width:420px){
+  .site-header{padding:7px 11px;gap:7px}
+  .site-header .brand{gap:7px}
+  .site-header .brand-logo{flex-basis:34px;width:34px;height:34px;max-width:34px}
+  .site-header .brand-copy strong{font-size:13px}
+  .site-header .brand-copy b{font-size:12px}
+  .site-header .brand-copy small{font-size:6.5px}
+  .site-header .menu-toggle{flex-basis:38px;width:38px;height:38px}
+  .site-header .main-nav.is-open{right:10px;width:min(90vw,340px);gap:3px;padding:8px}
+}
