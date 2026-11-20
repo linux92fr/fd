@@ -16,13 +16,13 @@ async function api(path, options = {}) {
 }
 
 async function installPublicAccountHeader() {
-  if (/^\/admin(?:\.html)?\/?$/.test(location.pathname)) return;
+  if (/^\/admin\/?$/.test(location.pathname)) return;
   const header = document.querySelector('.site-header');
   if (!header || header.querySelector('.public-account-tools')) return;
 
   const tools = document.createElement('div');
   tools.className = 'public-account-tools';
-  tools.innerHTML = '<a class="public-login-link" href="/admin.html">Connexion</a>';
+  tools.innerHTML = '<a class="public-login-link" href="/admin">Connexion</a>';
   header.insertBefore(tools, header.querySelector(".menu-toggle"));
 
   try {
