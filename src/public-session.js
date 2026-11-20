@@ -23,7 +23,7 @@ async function installPublicAccountHeader() {
   const tools = document.createElement('div');
   tools.className = 'public-account-tools';
   tools.innerHTML = '<a class="public-login-link" href="/admin">Connexion</a>';
-  header.append(tools);
+  header.insertBefore(tools, header.querySelector(".menu-toggle"));
 
   try {
     const result = await auth.token();
