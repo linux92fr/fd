@@ -1366,3 +1366,43 @@ body:has(.hero) .contact-section{padding-top:48px;padding-bottom:48px}
     padding: 0;
   }
 }
+
+
+/* Keep the public application stretched to the live viewport after device rotation. */
+html,
+body {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+#app {
+  display: flow-root;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  margin: 0;
+}
+
+#app > header,
+#app > main,
+#app > footer {
+  width: 100%;
+  max-width: none;
+}
+
+@media (orientation: landscape) and (max-width: 1000px) {
+  html,
+  body,
+  #app {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  #app > main > section,
+  #app > header,
+  #app > footer {
+    max-width: none;
+  }
+}
