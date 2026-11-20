@@ -1020,3 +1020,46 @@ body:has(.hero) .contact-section{padding-top:48px;padding-bottom:48px}
 .article-grid.is-expanded{grid-template-columns:repeat(3,minmax(0,1fr))}
 @media(max-width:1000px){.article-grid.is-expanded{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:620px){.article-grid.is-expanded{grid-template-columns:1fr}}
+
+
+/* Les illustrations des actualités contiennent du texte : ne jamais les recadrer. */
+#actualites .article-card-image,
+.article-card-image{
+  display:block;
+  width:calc(100% + 52px);
+  max-width:calc(100% + 52px);
+  height:auto;
+  max-height:none;
+  aspect-ratio:auto;
+  object-fit:contain;
+  background:#fff;
+  flex:0 0 auto;
+  margin:-26px -26px 18px;
+  border-radius:10px 10px 0 0;
+}
+/* Page de lecture d’un article : largeur explicite et centrage stable. */
+main.article-detail-page{
+  display:block;
+  width:100%;
+  max-width:1120px;
+  min-width:0;
+  margin:0 auto;
+  padding:54px 28px 72px;
+  box-sizing:border-box;
+}
+.article-detail{
+  width:100%;
+  min-width:0;
+  box-sizing:border-box;
+}
+.article-detail-cover{
+  display:block;
+  width:100%;
+  height:auto;
+  max-height:none;
+  aspect-ratio:auto;
+  object-fit:contain;
+}
+@media(max-width:620px){
+  main.article-detail-page{padding:26px 14px 54px}
+}
