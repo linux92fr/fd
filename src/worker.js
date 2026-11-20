@@ -1370,7 +1370,7 @@ async function handleAdmin(request, env, url, origin) {
 const SITE_ACCESS_COOKIE = "fd_site_access";
 const SITE_ACCESS_SESSION_SECONDS = 43200;
 const SITE_ACCESS_EXEMPT_PATHS = new Set(["/admin","/admin/","/acces","/api/site-access/login","/api/site-access/status","/api/site-access/logout","/api/webhooks/neon-auth","/newsletter/desinscription","/logo-focom-fond-rouge.png"]);
-function b64url(bytes){let s="";for(const b of bytes)s+=String.fromCharCode(b);return btoa(s).replace(/=/g,"").replace(/\\+/g,"-").replace(/\\//g,"_")}
+function b64url(bytes){let s="";for(const b of bytes)s+=String.fromCharCode(b);return btoa(s).replace(/=/g,"").replace(/\+/g,"-").replace(/\//g,"_")}
 function unb64url(s){s=s.replace(/-/g,"+").replace(/_/g,"/");const b=atob(s+"=".repeat((4-s.length%4)%4));return Uint8Array.from(b,c=>c.charCodeAt(0))}
 async function accessSign(payload,secret){const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);return new Uint8Array(await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(payload)))}
 async function deriveSitePassword(password,salt,iterations=310000){const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(password),"PBKDF2",false,["deriveBits"]);return new Uint8Array(await crypto.subtle.deriveBits({name:"PBKDF2",hash:"SHA-256",salt,iterations},key,256))}
