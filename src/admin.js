@@ -278,7 +278,7 @@ async function dashboard() {
       (canManage ? '<article class="admin-stat"><span>Messages reçus</span><strong>' + Number(overview.messages_total || 0) + '</strong><small>' + Number(overview.messages_new || 0) + ' nouveaux · ' + Number(overview.messages_in_progress || 0) + ' en cours</small></article><article class="admin-stat"><span>Messages traités</span><strong>' + Number(overview.messages_resolved || 0) + '</strong><small>Demandes marquées comme traitées</small></article>' : '') + '</div></section>' +
       '<section class="admin-module-section"><div class="admin-section-heading"><span class="admin-section-number">01</span><div><h2>Gestion du site</h2><p>Organisez les contenus et les rubriques visibles par les salariés.</p></div></div><div class="admin-module-grid">' +
       (canWrite ? tile('open-articles','Aa','Actualités','Créer, classer et publier les articles') : '') +
-      (canManage ? tile('open-homepage','⌂','Page d’accueil','Textes, visuels et aperçu de la page') + tile('open-survey','▤','Questionnaire','Consulter les réponses et les statistiques') : '') + (canWrite ? tile('open-content','§','Revendications et droits','Modifier les contenus, organiser les rubriques et prévisualiser') : '') +
+      (canManage ? tile('open-homepage','⌂','Page d’accueil','Textes, visuels et aperçu de la page') + tile('open-survey','▤','Questionnaire','Consulter les réponses et les statistiques') + tile('open-maintenance','◷','Maintenance du site','Programmer ou activer une page de maintenance') : '') + (canWrite ? tile('open-content','§','Revendications et droits','Modifier les contenus, organiser les rubriques et prévisualiser') : '') +
       '</div></section>' +
       (canManage ? '<section class="admin-module-section"><div class="admin-section-heading"><span class="admin-section-number">02</span><div><h2>Communication</h2><p>Suivez les échanges avec les salariés et les campagnes d’information.</p></div></div><div class="admin-module-grid">' +
       tile('open-messages','✉','Messages reçus','Demandes envoyées depuis le formulaire') +
@@ -299,10 +299,21 @@ async function dashboard() {
     const routes = {
       'open-articles': articlesPage, 'open-messages': messages, 'open-survey': surveyPage,
       'open-media': mediaPage, 'open-homepage': homepagePage, 'open-newsletter': () => newsletterPage({ call, frame, root, dashboard }),
+      'open-maintenance': maintenancePageAdmin,
       'open-users': usersPage, 'open-account-emails': accountEmailsPage, 'open-private-messages': () => privateMessagesPage(), 'open-mailbox': () => window.open('https://webmail.amen.fr/', '_blank', 'noopener,noreferrer'), 'open-content': siteContentPage
     };
     for (const [id, handler] of Object.entries(routes)) root.querySelector('#' + id)?.addEventListener('click', handler);
   } catch (err) { login('Impossible de charger le tableau de bord : ' + (err.message || 'ERREUR_INCONNUE') + '.'); }
+}
+
+async function maintenancePageAdmin(){
+  try{
+    const {maintenance:m}=await call('/api/admin/maintenance');
+    const local=value=>{if(!value)return '';const d=new Date(value);return Number.isNaN(d.getTime())?'':new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16)};
+    frame('<div class="admin-title-row"><div><span class="eyebrow">Gestion du site</span><h1>Maintenance programmée</h1><p>La page publique remplace le site pendant la période définie. Le tableau de bord reste accessible aux administrateurs.</p></div><button id="back-dashboard" class="button button-outline-dark">← Tableau de bord</button></div><section class="admin-panel"><form id="maintenance-form"><label style="display:flex;gap:.7rem;align-items:center"><input name="enabled" type="checkbox" '+(m.enabled?'checked':'')+' style="width:auto"> Activer la maintenance (ou la programmer)</label><label>Date et heure de début<input name="startsAt" type="datetime-local" value="'+esc(local(m.startsAt))+'"><small>Laisser vide pour une activation immédiate.</small></label><label>Date et heure de fin<input name="endsAt" type="datetime-local" value="'+esc(local(m.endsAt))+'"><small>Laisser vide pour désactiver manuellement.</small></label><label>Message affiché aux visiteurs<textarea name="message" rows="4" maxlength="500">'+esc(m.message)+'</textarea></label><p class="admin-hint">Les dates sont interprétées dans le fuseau horaire de votre navigateur. La maintenance se déclenche automatiquement à l’heure prévue.</p><button class="button button-red">Enregistrer les paramètres</button><p id="maintenance-status" class="admin-message" role="status"></p></form></section>');
+    root.querySelector('#back-dashboard').onclick=()=>dashboard();
+    root.querySelector('#maintenance-form').onsubmit=async e=>{e.preventDefault();const f=e.currentTarget,b=f.querySelector('button'),status=root.querySelector('#maintenance-status');b.disabled=true;status.textContent='Enregistrement…';const iso=name=>f.elements[name].value?new Date(f.elements[name].value).toISOString():'';try{await call('/api/admin/maintenance',{method:'PUT',body:JSON.stringify({enabled:f.elements.enabled.checked,startsAt:iso('startsAt'),endsAt:iso('endsAt'),message:f.elements.message.value})});status.textContent='Paramètres enregistrés. La programmation est prise en compte.';b.disabled=false;}catch(err){status.textContent=err.message||'Enregistrement impossible.';b.disabled=false;}};
+  }catch(err){frame('<section class="admin-panel"><h1>Maintenance du site</h1><p>'+esc(err.message||'Impossible de charger les paramètres.')+'</p><button id="back-dashboard" class="button button-outline-dark">← Tableau de bord</button></section>');root.querySelector('#back-dashboard').onclick=()=>dashboard();}
 }
 
 async function siteContentPage(){
