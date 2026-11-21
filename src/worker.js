@@ -46,7 +46,7 @@ const SURVEY_CONFIG_DEFAULT = {
     {value:"other",label:"Autre sujet"}
   ]
 };
-function validateSiteContent(key,value){
+export function validateSiteContent(key,value){
   const short=(v,max=240)=>typeof v==="string"&&v.length<=max;
   if(!SITE_CONTENT_KEYS.has(key)||!value||typeof value!=="object"||Array.isArray(value))return false;
   if(key==="section_order")return Array.isArray(value.order)&&value.order.length===SITE_SECTION_ORDER.length&&value.order.every((v,i,a)=>SITE_SECTION_ORDER.includes(v)&&a.indexOf(v)===i);
@@ -54,7 +54,7 @@ function validateSiteContent(key,value){
   if(key==="claims")return Array.isArray(value.items)&&value.items.length>=1&&value.items.length<=20&&value.items.every(x=>x&&short(x.icon,8)&&short(x.number,80)&&short(x.title,180)&&Array.isArray(x.bullets)&&x.bullets.length<=12&&x.bullets.every(v=>short(v,500)))&&short(value.commitmentTitle,180)&&short(value.commitmentText,2000)&&short(value.disclaimer,2000);
   return Array.isArray(value.topics)&&value.topics.length>=1&&value.topics.length<=20&&value.topics.every(x=>x&&short(x.icon,8)&&short(x.number,80)&&short(x.title,180))&&short(value.contactTitle,180)&&short(value.contactText,1000);
 }
-function validateSurveyConfig(value){
+export function validateSurveyConfig(value){
   const allowed=new Set(SURVEY_CONFIG_DEFAULT.priorityOptions.map(x=>x.value));
   return value&&typeof value==="object"&&!Array.isArray(value)&&["conditions","priorities","recognition","comment"].every(k=>typeof value[k]==="string"&&value[k].trim()&&value[k].length<=300)&&Array.isArray(value.priorityOptions)&&value.priorityOptions.length===allowed.size&&value.priorityOptions.every(x=>x&&allowed.has(x.value)&&typeof x.label==="string"&&x.label.trim()&&x.label.length<=180)&&new Set(value.priorityOptions.map(x=>x.value)).size===allowed.size;
 }
