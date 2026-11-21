@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",
     "build:preview": "vite build --mode preview",
-    "build:production": "vite build --mode production"
+    "build:production": "vite build --mode production",
+    "test": "node --test"
   },
   "dependencies": {
     "@neondatabase/auth": "0.7.0-beta",
