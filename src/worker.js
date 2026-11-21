@@ -151,7 +151,7 @@ async function newsletterSignupRateLimit(request, env) {
   });
 }
 
-async function handleNewsletterSubscribe(request, env) {
+export async function handleNewsletterSubscribe(request, env) {
   const origin = request.headers.get("Origin") || "";
   if (!allowedOrigins.has(origin)) return json({ error: "INVALID_ORIGIN" }, 403, origin);
   if (request.headers.get("content-type")?.split(";")[0].trim() !== "application/json") {
@@ -213,7 +213,7 @@ async function contactRateLimit(request, env) {
   });
 }
 
-async function handleContact(request, env) {
+export async function handleContact(request, env) {
   const origin = request.headers.get("Origin") || "";
   if (!allowedOrigins.has(origin)) return json({ error: "INVALID_ORIGIN" }, 403, origin);
   if (request.headers.get("content-type")?.split(";")[0].trim() !== "application/json") {
@@ -300,7 +300,7 @@ async function handleContact(request, env) {
   }
 }
 
-async function handleSurvey(request, env) {
+export async function handleSurvey(request, env) {
   if (!env.SURVEYS_DB) return json({ error: "SURVEY_STORAGE_UNAVAILABLE" }, 503);
   if (request.headers.get("content-type")?.split(";")[0].trim() !== "application/json") {
     return json({ error: "INVALID_CONTENT_TYPE" }, 415);
