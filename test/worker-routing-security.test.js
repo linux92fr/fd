@@ -62,5 +62,26 @@ test("site access status is safely unauthenticated when signing is not configure
 test("the access page remains available without a site-access session", async () => {
   const response = await worker.fetch(request("/acces"), {}, {});
   assert.equal(response.status, 200);
-  assert.match(await response.text(), /Accès|accès/);
+  const page = await response.text();
+  assert.match(page, /Accès|accès/);
+  assert.match(page, /logo-fd\.webp/);
+});
+
+test("the access page logo remains available without a site-access session", async () => {
+  let requestedUrl = "";
+  const env = {
+    ASSETS: {
+      async fetch(assetRequest) {
+        requestedUrl = new URL(assetRequest.url).pathname;
+        return new Response("logo", {
+          headers: { "content-type": "image/webp" },
+        });
+      },
+    },
+  };
+
+  const response = await worker.fetch(request("/logo-fd.webp"), env, {});
+  assert.equal(response.status, 200);
+  assert.equal(requestedUrl, "/logo-fd.webp");
+  assert.equal(response.headers.get("content-type"), "image/webp");
 });

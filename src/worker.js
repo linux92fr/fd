@@ -1369,7 +1369,7 @@ async function handleAdmin(request, env, url, origin) {
 
 const SITE_ACCESS_COOKIE = "fd_site_access";
 const SITE_ACCESS_SESSION_SECONDS = 43200;
-const SITE_ACCESS_EXEMPT_PATHS = new Set(["/admin","/admin/","/acces","/api/site-access/login","/api/site-access/status","/api/site-access/logout","/api/webhooks/neon-auth","/newsletter/desinscription","/logo-focom-fond-rouge.png"]);
+const SITE_ACCESS_EXEMPT_PATHS = new Set(["/admin","/admin/","/acces","/api/site-access/login","/api/site-access/status","/api/site-access/logout","/api/webhooks/neon-auth","/newsletter/desinscription","/logo-focom-fond-rouge.png","/logo-fd.webp"]);
 function b64url(bytes){let s="";for(const b of bytes)s+=String.fromCharCode(b);return btoa(s).replace(/=/g,"").replace(/\+/g,"-").replace(/\//g,"_")}
 function unb64url(s){s=s.replace(/-/g,"+").replace(/_/g,"/");const b=atob(s+"=".repeat((4-s.length%4)%4));return Uint8Array.from(b,c=>c.charCodeAt(0))}
 async function accessSign(payload,secret){const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);return new Uint8Array(await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(payload)))}
@@ -1383,8 +1383,422 @@ async function recordSiteLoginFailure(request,env){const ip=request.headers.get(
 async function clearSiteLoginFailures(request,env){const ip=request.headers.get("CF-Connecting-IP");if(!ip||!env.SURVEYS_DB)return;const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(ip));await env.SURVEYS_DB.prepare("DELETE FROM site_access_login_attempts WHERE ip_hash=?").bind(b64url(new Uint8Array(digest))).run()}
 function constructionPage(){return new Response('<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>FO Free Distribution · Site en préparation</title><style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:linear-gradient(135deg,#f7f7f8,#fff 60%,#fbecef);font:16px system-ui;color:#24252b}main{width:min(100%,680px);padding:clamp(30px,7vw,64px);text-align:center;background:white;border:1px solid #eee;border-radius:22px;box-shadow:0 18px 60px #25262b12}img{width:74px;height:74px;border-radius:50%}.eyebrow{margin-top:20px;color:#c8102e;font-size:12px;font-weight:800;letter-spacing:2px}h1{font-size:clamp(32px,6vw,48px);line-height:1.08;letter-spacing:-1.5px}p{color:#686a73;line-height:1.75}a{display:inline-block;margin-top:18px;padding:14px 22px;border-radius:999px;background:#c8102e;color:white;text-decoration:none;font-weight:700}</style></head><body><main><img src="/logo-focom-fond-rouge.png" alt="FOCOM"><div class="eyebrow">FOCOM · FREE DISTRIBUTION</div><h1>Notre site se prépare&nbsp;!</h1><p>Nous préparons un nouvel espace d’information et d’action syndicale dédié aux salariés de Free Distribution.</p><p>Le site complet reste accessible aux salariés et représentants autorisés.</p><a href="/acces">Accès réservé</a></main></body></html>',{headers:{"content-type":"text/html; charset=utf-8","cache-control":"no-store","x-robots-tag":"noindex, nofollow"}})}
 function maintenancePage(message){const safe=String(message||"Maintenance programmée").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));return new Response('<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Maintenance · FO Free Distribution</title><style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:linear-gradient(135deg,#f7f7f8,#fff 60%,#fbecef);font:16px system-ui;color:#24252b}main{width:min(100%,680px);padding:clamp(30px,7vw,64px);text-align:center;background:white;border:1px solid #eee;border-radius:22px;box-shadow:0 18px 60px #25262b12}h1{font-size:clamp(30px,6vw,44px)}p{color:#686a73;line-height:1.8;white-space:pre-line}</style></head><body><main><h1>Maintenance programmée</h1><p>'+safe+'</p></main></body></html>',{headers:{"content-type":"text/html; charset=utf-8","cache-control":"no-store","x-robots-tag":"noindex, nofollow"}})}
+function modernAccessLoginPage(configured){
+  const availability = configured ? "" : "disabled";
+  const initialStatus = configured ? "" : "L’accès au site n’est pas encore configuré. Contactez un administrateur.";
+  return new Response(`<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#111c2d">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Accès réservé · FO Free Distribution</title>
+  <style>
+    :root{
+      color-scheme:light;
+      --red:#c8102e;
+      --red-dark:#9f0c24;
+      --ink:#172033;
+      --muted:#667085;
+      --line:#e4e8ef;
+      --paper:#f5f7fa;
+      --navy:#111c2d;
+      --teal:#0f8f87;
+      --pointer-x:72%;
+      --pointer-y:24%;
+      font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      font-synthesis:none;
+      text-rendering:optimizeLegibility;
+    }
+    *{box-sizing:border-box}
+    html{min-width:320px;overflow-x:hidden}
+    body{
+      min-height:100svh;
+      margin:0;
+      overflow-x:hidden;
+      display:grid;
+      place-items:center;
+      padding:clamp(16px,4vw,46px);
+      color:var(--ink);
+      background:
+        radial-gradient(circle at var(--pointer-x) var(--pointer-y),rgba(200,16,46,.2),transparent 24rem),
+        radial-gradient(circle at 10% 90%,rgba(15,143,135,.16),transparent 25rem),
+        linear-gradient(145deg,#0d1726,#17263b 58%,#0b1422);
+    }
+    body::before{
+      content:"";
+      position:fixed;
+      inset:0;
+      pointer-events:none;
+      opacity:.18;
+      background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);
+      background-size:42px 42px;
+      mask-image:linear-gradient(to bottom,black,transparent 82%);
+    }
+    button,input{font:inherit}
+    button{cursor:pointer}
+    .access-shell{
+      position:relative;
+      z-index:1;
+      display:grid;
+      grid-template-columns:minmax(0,1.15fr) minmax(350px,.85fr);
+      width:min(1120px,100%);
+      min-height:640px;
+      overflow:hidden;
+      border:1px solid rgba(255,255,255,.2);
+      border-radius:32px;
+      background:#fff;
+      box-shadow:0 40px 110px -38px rgba(0,0,0,.85),0 1px 0 rgba(255,255,255,.25) inset;
+      animation:shell-in .72s cubic-bezier(.2,.72,.25,1) both;
+    }
+    .brand-panel{
+      position:relative;
+      display:flex;
+      min-width:0;
+      flex-direction:column;
+      justify-content:space-between;
+      overflow:hidden;
+      padding:clamp(28px,5vw,62px);
+      background:
+        radial-gradient(circle at 92% 8%,rgba(200,16,46,.08),transparent 18rem),
+        linear-gradient(160deg,#fff,#f7f8fa);
+    }
+    .brand-panel::after{
+      content:"";
+      position:absolute;
+      right:-100px;
+      bottom:-150px;
+      width:360px;
+      height:360px;
+      border:1px solid rgba(200,16,46,.11);
+      border-radius:50%;
+      box-shadow:0 0 0 54px rgba(200,16,46,.025),0 0 0 108px rgba(200,16,46,.018);
+      animation:orbit 16s ease-in-out infinite alternate;
+    }
+    .brand-top{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:18px}
+    .secure-chip{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      border:1px solid #e2e7ee;
+      border-radius:999px;
+      background:rgba(255,255,255,.75);
+      padding:8px 12px;
+      color:#4b5568;
+      font-size:11px;
+      font-weight:800;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      backdrop-filter:blur(8px);
+    }
+    .secure-dot{width:7px;height:7px;border-radius:50%;background:#16834a;box-shadow:0 0 0 4px rgba(22,131,74,.12)}
+    .brand-logo{
+      position:relative;
+      z-index:1;
+      display:block;
+      width:min(100%,760px);
+      height:auto;
+      margin:26px 0;
+      filter:drop-shadow(0 22px 28px rgba(32,33,38,.08));
+      animation:logo-in .9s .12s cubic-bezier(.2,.72,.25,1) both;
+    }
+    .brand-copy{position:relative;z-index:1;max-width:620px}
+    .eyebrow{margin:0 0 12px;color:var(--red);font-size:11px;font-weight:900;letter-spacing:.16em;text-transform:uppercase}
+    .brand-copy h2{margin:0;font-size:clamp(25px,3.2vw,38px);line-height:1.08;letter-spacing:-.045em;text-wrap:balance}
+    .brand-copy p{max-width:55ch;margin:14px 0 0;color:var(--muted);font-size:clamp(13px,1.4vw,16px);line-height:1.7;text-wrap:pretty}
+    .trust-list{display:flex;flex-wrap:wrap;gap:9px;margin-top:24px}
+    .trust-list span{display:inline-flex;align-items:center;gap:7px;border:1px solid #e2e7ee;border-radius:999px;background:#fff;padding:8px 11px;color:#4c586a;font-size:11px;font-weight:700}
+    .trust-list span::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--teal)}
+    .login-panel{
+      position:relative;
+      display:flex;
+      min-width:0;
+      flex-direction:column;
+      justify-content:center;
+      overflow:hidden;
+      padding:clamp(30px,4.8vw,56px);
+      background:
+        radial-gradient(circle at 100% 0%,rgba(15,143,135,.2),transparent 20rem),
+        linear-gradient(155deg,#16263c,var(--navy));
+      color:#fff;
+    }
+    .login-panel::before{
+      content:"";
+      position:absolute;
+      right:-120px;
+      top:-120px;
+      width:320px;
+      height:320px;
+      border:52px solid rgba(255,255,255,.035);
+      border-radius:50%;
+    }
+    .login-content{position:relative;z-index:1;width:100%;max-width:430px;margin:auto}
+    .login-icon{display:grid;width:50px;height:50px;place-items:center;border:1px solid rgba(255,255,255,.12);border-radius:16px;background:rgba(255,255,255,.08);color:#99f6e4;box-shadow:0 12px 30px rgba(0,0,0,.18);backdrop-filter:blur(10px)}
+    .login-icon svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+    .login-content h1{margin:24px 0 0;font-size:clamp(30px,4.1vw,45px);line-height:1;letter-spacing:-.055em;text-wrap:balance}
+    .login-intro{margin:12px 0 0;color:rgba(255,255,255,.62);font-size:14px;line-height:1.65;text-wrap:pretty}
+    .login-form{display:grid;gap:16px;margin-top:30px}
+    .field{display:grid;gap:8px}
+    .field label{color:rgba(255,255,255,.82);font-size:12px;font-weight:800}
+    .input-wrap{position:relative}
+    .input-wrap>svg{position:absolute;left:15px;top:50%;width:18px;height:18px;translate:0 -50%;color:rgba(255,255,255,.42);fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+    .password-input{
+      width:100%;
+      height:52px;
+      border:1px solid rgba(255,255,255,.14);
+      border-radius:14px;
+      background:rgba(255,255,255,.075);
+      padding:0 78px 0 47px;
+      color:#fff;
+      font-size:16px;
+      outline:0;
+      transition:border-color .2s ease,background .2s ease,box-shadow .2s ease;
+      backdrop-filter:blur(8px);
+    }
+    .password-input::placeholder{color:rgba(255,255,255,.34)}
+    .password-input:focus{border-color:rgba(45,212,191,.7);background:rgba(255,255,255,.1);box-shadow:0 0 0 4px rgba(45,212,191,.12)}
+    .password-input:disabled{opacity:.55;cursor:not-allowed}
+    .password-toggle{
+      position:absolute;
+      right:8px;
+      top:50%;
+      translate:0 -50%;
+      border:0;
+      border-radius:10px;
+      background:transparent;
+      padding:8px 10px;
+      color:rgba(255,255,255,.58);
+      font-size:11px;
+      font-weight:800;
+    }
+    .password-toggle:hover{background:rgba(255,255,255,.08);color:#fff}
+    .submit-button{
+      position:relative;
+      display:flex;
+      height:52px;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
+      overflow:hidden;
+      border:1px solid #ef3d57;
+      border-radius:14px;
+      background:linear-gradient(135deg,#db1735,var(--red));
+      color:#fff;
+      font-size:13px;
+      font-weight:900;
+      box-shadow:0 18px 34px -19px rgba(220,38,38,.85);
+      transition:transform .2s ease,filter .2s ease,box-shadow .2s ease;
+    }
+    .submit-button::before{
+      content:"";
+      position:absolute;
+      inset:0;
+      background:linear-gradient(110deg,transparent 25%,rgba(255,255,255,.18) 48%,transparent 70%);
+      translate:-120% 0;
+      transition:translate .55s ease;
+    }
+    .submit-button:hover:not(:disabled){transform:translateY(-2px);filter:saturate(1.08);box-shadow:0 22px 38px -18px rgba(220,38,38,.95)}
+    .submit-button:hover:not(:disabled)::before{translate:120% 0}
+    .submit-button:disabled{opacity:.62;cursor:not-allowed;box-shadow:none}
+    .submit-arrow{font-size:17px;transition:translate .2s ease}
+    .submit-button:hover:not(:disabled) .submit-arrow{translate:3px 0}
+    .spinner{display:none;width:17px;height:17px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin .75s linear infinite}
+    .submit-button[data-loading="true"] .spinner{display:block}
+    .submit-button[data-loading="true"] .submit-arrow{display:none}
+    .status{
+      min-height:22px;
+      margin:0;
+      border-radius:10px;
+      color:rgba(255,255,255,.58);
+      font-size:12px;
+      line-height:1.5;
+      text-align:center;
+      transition:color .2s ease,background .2s ease,padding .2s ease;
+    }
+    .status[data-state="error"]{padding:10px 12px;background:rgba(248,113,113,.12);color:#fecaca}
+    .status[data-state="success"]{padding:10px 12px;background:rgba(52,211,153,.12);color:#a7f3d0}
+    .security-note{display:flex;gap:11px;margin-top:10px;border-top:1px solid rgba(255,255,255,.09);padding-top:18px;color:rgba(255,255,255,.48);font-size:11px;line-height:1.55}
+    .security-note svg{width:16px;height:16px;flex:0 0 auto;margin-top:1px;color:#5eead4;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+    .back-link{display:inline-flex;align-items:center;gap:8px;margin-top:22px;color:rgba(255,255,255,.54);font-size:12px;font-weight:700;text-decoration:none;transition:color .2s ease,gap .2s ease}
+    .back-link:hover{color:#fff;gap:11px}
+    .access-shell.has-error{animation:shake .36s ease}
+    @keyframes shell-in{from{opacity:0;transform:translateY(22px) scale(.985)}to{opacity:1;transform:none}}
+    @keyframes logo-in{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+    @keyframes orbit{to{transform:rotate(12deg) scale(1.04)}}
+    @keyframes spin{to{rotate:360deg}}
+    @keyframes shake{20%{translate:-5px 0}40%{translate:5px 0}60%{translate:-3px 0}80%{translate:3px 0}}
+    @media(max-width:860px){
+      body{padding:14px}
+      .access-shell{grid-template-columns:1fr;min-height:0;border-radius:24px}
+      .brand-panel{padding:26px 24px 24px}
+      .brand-top{display:none}
+      .brand-logo{width:min(100%,620px);margin:0 auto 22px}
+      .brand-copy{text-align:center;margin:auto}
+      .brand-copy p{margin-inline:auto}
+      .trust-list{justify-content:center}
+      .login-panel{padding:34px 24px 30px}
+      .login-content{max-width:520px}
+      .login-icon{width:44px;height:44px;border-radius:14px}
+      .login-content h1{font-size:34px}
+    }
+    @media(max-width:460px){
+      body{padding:0;background:var(--navy)}
+      .access-shell{border:0;border-radius:0;min-height:100svh}
+      .brand-panel{padding:22px 18px 18px}
+      .brand-copy h2{font-size:25px}
+      .brand-copy p{font-size:13px}
+      .trust-list{gap:6px}.trust-list span{font-size:9px;padding:7px 9px}
+      .login-panel{padding:30px 20px 26px}
+      .login-content h1{font-size:31px}
+      .login-form{margin-top:24px}
+    }
+    @media(prefers-reduced-motion:reduce){
+      *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
+    }
+  </style>
+</head>
+<body>
+  <main class="access-shell" id="access-shell">
+    <section class="brand-panel" aria-labelledby="access-context-title">
+      <div class="brand-top">
+        <span class="secure-chip"><span class="secure-dot" aria-hidden="true"></span> Espace sécurisé</span>
+        <span class="secure-chip">FOCOM · Free Distribution</span>
+      </div>
+      <img class="brand-logo" src="/logo-fd.webp" width="1600" height="668" alt="FOCOM Free Distribution – Le syndicat des salariés de Free Distribution">
+      <div class="brand-copy">
+        <p class="eyebrow">Information et action syndicale</p>
+        <h2 id="access-context-title">Un espace confidentiel réservé aux salariés et représentants autorisés.</h2>
+        <p>Retrouvez les actualités, les revendications et les ressources FO Free Distribution dans un environnement d’accès protégé.</p>
+        <div class="trust-list" aria-label="Garanties de sécurité">
+          <span>Accès limité</span>
+          <span>Session sécurisée</span>
+          <span>Usage professionnel</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="login-panel" aria-labelledby="access-title">
+      <div class="login-content">
+        <div class="login-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><path d="M12 14v2"/></svg></div>
+        <h1 id="access-title">Accès réservé</h1>
+        <p class="login-intro">Saisissez le mot de passe communiqué aux salariés et représentants autorisés.</p>
+        <form class="login-form" id="f">
+          <div class="field">
+            <label for="p">Mot de passe commun</label>
+            <div class="input-wrap">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><path d="M12 14v2"/></svg>
+              <input class="password-input" id="p" name="password" type="password" autocomplete="current-password" maxlength="256" required aria-describedby="s" ${availability}>
+              <button class="password-toggle" id="toggle-password" type="button" aria-pressed="false" aria-controls="p">Afficher</button>
+            </div>
+          </div>
+          <button class="submit-button" type="submit" ${availability}>
+            <span class="spinner" aria-hidden="true"></span>
+            <span class="submit-label">Accéder au site</span>
+            <span class="submit-arrow" aria-hidden="true">→</span>
+          </button>
+          <p class="status" id="s" role="status" aria-live="polite">${initialStatus}</p>
+        </form>
+        <div class="security-note">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4.5 6v5.2c0 4.7 3.2 8.1 7.5 9.8 4.3-1.7 7.5-5.1 7.5-9.8V6L12 3Z"/><path d="m9 12 2 2 4-4"/></svg>
+          <span>Les tentatives sont limitées pour protéger l’accès. Votre session expire automatiquement après 12 heures.</span>
+        </div>
+        <a class="back-link" href="/">← Retour à l’accueil</a>
+      </div>
+    </section>
+  </main>
+  <script>
+    (() => {
+      const shell = document.querySelector('#access-shell');
+      const form = document.querySelector('#f');
+      const field = document.querySelector('#p');
+      const status = document.querySelector('#s');
+      const button = form.querySelector('button[type="submit"]');
+      const label = button.querySelector('.submit-label');
+      const toggle = document.querySelector('#toggle-password');
+      let pointerFrame = 0;
+
+      const setStatus = (message, state = '') => {
+        const update = () => {
+          status.textContent = message;
+          status.dataset.state = state;
+        };
+        if (document.startViewTransition && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          document.startViewTransition(update);
+        } else {
+          update();
+        }
+      };
+
+      toggle.addEventListener('click', () => {
+        const reveal = field.type === 'password';
+        field.type = reveal ? 'text' : 'password';
+        toggle.textContent = reveal ? 'Masquer' : 'Afficher';
+        toggle.setAttribute('aria-pressed', String(reveal));
+        field.focus();
+      });
+
+      field.addEventListener('input', () => {
+        if (status.dataset.state === 'error') setStatus('');
+      });
+
+      document.addEventListener('pointermove', event => {
+        if (pointerFrame) return;
+        pointerFrame = requestAnimationFrame(() => {
+          document.documentElement.style.setProperty('--pointer-x', (event.clientX / innerWidth * 100).toFixed(2) + '%');
+          document.documentElement.style.setProperty('--pointer-y', (event.clientY / innerHeight * 100).toFixed(2) + '%');
+          pointerFrame = 0;
+        });
+      }, { passive: true });
+
+      form.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (button.disabled) return;
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), 15000);
+        button.disabled = true;
+        button.dataset.loading = 'true';
+        button.setAttribute('aria-busy', 'true');
+        label.textContent = 'Vérification…';
+        setStatus('Vérification du mot de passe en cours…');
+        try {
+          const response = await fetch('/api/site-access/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: field.value }),
+            signal: controller.signal,
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data.message || 'Mot de passe incorrect.');
+          setStatus('Accès autorisé. Ouverture du site…', 'success');
+          label.textContent = 'Accès autorisé';
+          const redirect = () => location.replace('/');
+          if (document.startViewTransition && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            document.startViewTransition(redirect);
+          } else {
+            redirect();
+          }
+        } catch (error) {
+          setStatus(error?.name === 'AbortError' ? 'La vérification a expiré. Vérifiez votre connexion puis réessayez.' : (error.message || 'Mot de passe incorrect.'), 'error');
+          shell.classList.remove('has-error');
+          void shell.offsetWidth;
+          shell.classList.add('has-error');
+          field.select();
+          button.disabled = false;
+          button.dataset.loading = 'false';
+          button.removeAttribute('aria-busy');
+          label.textContent = 'Réessayer';
+        } finally {
+          window.clearTimeout(timeout);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>`,{headers:{"content-type":"text/html; charset=utf-8","cache-control":"no-store","x-robots-tag":"noindex, nofollow","content-security-policy":"default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"}});
+}
 function accessLoginPage(configured){return new Response('<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Accès réservé · FO Free Distribution</title><style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:22px;background:#f5f5f6;color:#24252b;font:16px system-ui}main{width:min(100%,440px);padding:34px;background:white;border:1px solid #e8e8eb;border-radius:18px}img{width:58px;height:58px;border-radius:50%}h1{font-size:27px}.muted{color:#6e7079;line-height:1.6;font-size:14px}label{display:block;margin:24px 0 8px;font-weight:700}input,button{width:100%;padding:14px;border-radius:9px;font:inherit}input{border:1px solid #d8d9de}button{margin-top:16px;border:0;background:#c8102e;color:white;font-weight:700;cursor:pointer}.status{color:#a10e28;font-size:13px;min-height:24px}a{display:block;text-align:center;margin-top:20px;color:#666;font-size:13px}</style></head><body><main><img src="/logo-focom-fond-rouge.png" alt="FOCOM"><h1>Accès réservé</h1><p class="muted">Saisissez le mot de passe communiqué aux salariés et représentants autorisés.</p><form id="f"><label for="p">Mot de passe commun</label><input id="p" type="password" autocomplete="current-password" maxlength="256" required ' + (configured?"":"disabled") + '><button ' + (configured?"":"disabled") + '>Accéder au site</button><p class="status" id="s" role="status"></p></form><a href="/">← Retour à l’accueil</a></main><script>const f=document.querySelector("#f"),s=document.querySelector("#s"),b=f.querySelector("button");f.addEventListener("submit",async e=>{e.preventDefault();b.disabled=true;s.textContent="Vérification…";try{const r=await fetch("/api/site-access/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:f.elements.p.value})});const d=await r.json();if(!r.ok)throw Error(d.message||"Mot de passe incorrect");location.replace("/")}catch(x){s.textContent=x.message;b.disabled=false}})</script></body></html>',{headers:{"content-type":"text/html; charset=utf-8","cache-control":"no-store","x-robots-tag":"noindex, nofollow"}})}
-async function handleSiteAccess(request,env,url){const secret=String(env.SITE_ACCESS_SIGNING_SECRET||"");const row=url.pathname==="/api/site-access/login"?await configuredSitePassword(env):null;const configured=secret.length>=32&&(!!row||String(env.SITE_ACCESS_PASSWORD||"").length>=12);if(url.pathname==="/acces"&&request.method==="GET")return accessLoginPage(configured);if(url.pathname==="/api/site-access/status"&&request.method==="GET")return json({authenticated:configured&&await hasSiteAccess(request,env)});if(url.pathname==="/api/site-access/logout"&&request.method==="POST")return new Response(JSON.stringify({ok:true}),{headers:{"content-type":"application/json","cache-control":"no-store","set-cookie":SITE_ACCESS_COOKIE+"=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax"}});if(url.pathname==="/api/site-access/login"&&request.method==="POST"){if(!configured)return json({error:"ACCESS_NOT_CONFIGURED"},503);if(request.headers.get("Origin")!==url.origin||request.headers.get("content-type")?.split(";")[0].trim()!=="application/json")return json({error:"INVALID_REQUEST"},403);let body;try{body=await request.json()}catch{return json({error:"INVALID_JSON"},400)}const supplied=typeof body.password==="string"?body.password:"";if(supplied.length>256)return json({error:"INVALID_PASSWORD",message:"Mot de passe incorrect."},401);if(await siteLoginRateLimited(request,env))return json({error:"TOO_MANY_ATTEMPTS",message:"Trop de tentatives. Réessayez dans 15 minutes."},429);if(!await verifySitePassword(supplied,env)){await recordSiteLoginFailure(request,env);return json({error:"INVALID_PASSWORD",message:"Mot de passe incorrect."},401)}await clearSiteLoginFailures(request,env);const now=Math.floor(Date.now()/1000),payload=b64url(new TextEncoder().encode(JSON.stringify({iat:now,exp:now+SITE_ACCESS_SESSION_SECONDS}))),signature=b64url(await accessSign(payload,secret));return new Response(JSON.stringify({ok:true}),{headers:{"content-type":"application/json","cache-control":"no-store","set-cookie":SITE_ACCESS_COOKIE+"="+payload+"."+signature+"; Path=/; Max-Age="+SITE_ACCESS_SESSION_SECONDS+"; HttpOnly; Secure; SameSite=Lax"}})}return null}
+async function handleSiteAccess(request,env,url){const secret=String(env.SITE_ACCESS_SIGNING_SECRET||"");const row=url.pathname==="/api/site-access/login"?await configuredSitePassword(env):null;const configured=secret.length>=32&&(!!row||String(env.SITE_ACCESS_PASSWORD||"").length>=12);if(url.pathname==="/acces"&&request.method==="GET")return modernAccessLoginPage(configured);if(url.pathname==="/api/site-access/status"&&request.method==="GET")return json({authenticated:configured&&await hasSiteAccess(request,env)});if(url.pathname==="/api/site-access/logout"&&request.method==="POST")return new Response(JSON.stringify({ok:true}),{headers:{"content-type":"application/json","cache-control":"no-store","set-cookie":SITE_ACCESS_COOKIE+"=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax"}});if(url.pathname==="/api/site-access/login"&&request.method==="POST"){if(!configured)return json({error:"ACCESS_NOT_CONFIGURED"},503);if(request.headers.get("Origin")!==url.origin||request.headers.get("content-type")?.split(";")[0].trim()!=="application/json")return json({error:"INVALID_REQUEST"},403);let body;try{body=await request.json()}catch{return json({error:"INVALID_JSON"},400)}const supplied=typeof body.password==="string"?body.password:"";if(supplied.length>256)return json({error:"INVALID_PASSWORD",message:"Mot de passe incorrect."},401);if(await siteLoginRateLimited(request,env))return json({error:"TOO_MANY_ATTEMPTS",message:"Trop de tentatives. Réessayez dans 15 minutes."},429);if(!await verifySitePassword(supplied,env)){await recordSiteLoginFailure(request,env);return json({error:"INVALID_PASSWORD",message:"Mot de passe incorrect."},401)}await clearSiteLoginFailures(request,env);const now=Math.floor(Date.now()/1000),payload=b64url(new TextEncoder().encode(JSON.stringify({iat:now,exp:now+SITE_ACCESS_SESSION_SECONDS}))),signature=b64url(await accessSign(payload,secret));return new Response(JSON.stringify({ok:true}),{headers:{"content-type":"application/json","cache-control":"no-store","set-cookie":SITE_ACCESS_COOKIE+"="+payload+"."+signature+"; Path=/; Max-Age="+SITE_ACCESS_SESSION_SECONDS+"; HttpOnly; Secure; SameSite=Lax"}})}return null}
 
 export default {
   async fetch(request, env) {
