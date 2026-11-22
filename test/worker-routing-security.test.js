@@ -59,6 +59,15 @@ test("site access status is safely unauthenticated when signing is not configure
   assert.deepEqual(await response.json(), { authenticated: false });
 });
 
+test("the unauthenticated home page presents the animated preparation screen", async () => {
+  const response = await worker.fetch(request("/"), {}, {});
+  assert.equal(response.status, 200);
+  const page = await response.text();
+  assert.match(page, /Notre site se prépare/);
+  assert.match(page, /Mise en ligne progressive/);
+  assert.match(page, /href="\/acces"/);
+});
+
 test("the access page remains available without a site-access session", async () => {
   const response = await worker.fetch(request("/acces"), {}, {});
   assert.equal(response.status, 200);

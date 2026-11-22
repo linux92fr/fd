@@ -1382,6 +1382,286 @@ async function siteLoginRateLimited(request,env){const ip=request.headers.get("C
 async function recordSiteLoginFailure(request,env){const ip=request.headers.get("CF-Connecting-IP");if(!ip||!env.SURVEYS_DB)return;const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(ip));const key=b64url(new Uint8Array(digest));await env.SURVEYS_DB.prepare("INSERT INTO site_access_login_attempts(ip_hash,window_started_at,attempts) VALUES(?,strftime('%Y-%m-%dT%H:%M:%fZ','now'),1) ON CONFLICT(ip_hash) DO UPDATE SET attempts=CASE WHEN site_access_login_attempts.window_started_at<strftime('%Y-%m-%dT%H:%M:%fZ','now','-15 minutes') THEN 1 ELSE site_access_login_attempts.attempts+1 END,window_started_at=CASE WHEN site_access_login_attempts.window_started_at<strftime('%Y-%m-%dT%H:%M:%fZ','now','-15 minutes') THEN excluded.window_started_at ELSE site_access_login_attempts.window_started_at END").bind(key).run()}
 async function clearSiteLoginFailures(request,env){const ip=request.headers.get("CF-Connecting-IP");if(!ip||!env.SURVEYS_DB)return;const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(ip));await env.SURVEYS_DB.prepare("DELETE FROM site_access_login_attempts WHERE ip_hash=?").bind(b64url(new Uint8Array(digest))).run()}
 function constructionPage(){return new Response('<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>FO Free Distribution · Site en préparation</title><style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:linear-gradient(135deg,#f7f7f8,#fff 60%,#fbecef);font:16px system-ui;color:#24252b}main{width:min(100%,680px);padding:clamp(30px,7vw,64px);text-align:center;background:white;border:1px solid #eee;border-radius:22px;box-shadow:0 18px 60px #25262b12}img{width:74px;height:74px;border-radius:50%}.eyebrow{margin-top:20px;color:#c8102e;font-size:12px;font-weight:800;letter-spacing:2px}h1{font-size:clamp(32px,6vw,48px);line-height:1.08;letter-spacing:-1.5px}p{color:#686a73;line-height:1.75}a{display:inline-block;margin-top:18px;padding:14px 22px;border-radius:999px;background:#c8102e;color:white;text-decoration:none;font-weight:700}</style></head><body><main><img src="/logo-focom-fond-rouge.png" alt="FOCOM"><div class="eyebrow">FOCOM · FREE DISTRIBUTION</div><h1>Notre site se prépare&nbsp;!</h1><p>Nous préparons un nouvel espace d’information et d’action syndicale dédié aux salariés de Free Distribution.</p><p>Le site complet reste accessible aux salariés et représentants autorisés.</p><a href="/acces">Accès réservé</a></main></body></html>',{headers:{"content-type":"text/html; charset=utf-8","cache-control":"no-store","x-robots-tag":"noindex, nofollow"}})}
+function animatedConstructionPage(){
+  return new Response(`<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#13233a">
+  <meta name="robots" content="noindex,nofollow">
+  <title>FO Free Distribution · Site en préparation</title>
+  <style>
+    @view-transition{navigation:auto}
+    :root{
+      color-scheme:light;
+      --red:#c8102e;
+      --red-dark:#9f0c24;
+      --ink:#162033;
+      --muted:#687386;
+      --line:#e5e9ef;
+      --navy:#13233a;
+      --navy-deep:#0b1525;
+      --teal:#0f8f87;
+      --pointer-x:72%;
+      --pointer-y:24%;
+      font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      font-synthesis:none;
+      text-rendering:optimizeLegibility;
+    }
+    *{box-sizing:border-box}
+    html{min-width:320px;overflow-x:hidden}
+    body{
+      min-height:100svh;
+      margin:0;
+      display:grid;
+      place-items:center;
+      overflow-x:hidden;
+      padding:clamp(16px,4vw,44px);
+      color:var(--ink);
+      background:
+        radial-gradient(circle at var(--pointer-x) var(--pointer-y),rgba(200,16,46,.12),transparent 22rem),
+        radial-gradient(circle at 12% 88%,rgba(15,143,135,.12),transparent 25rem),
+        #eef2f7;
+    }
+    body::before{
+      content:"";
+      position:fixed;
+      inset:0;
+      pointer-events:none;
+      opacity:.34;
+      background-image:radial-gradient(rgba(19,35,58,.14) .6px,transparent .6px);
+      background-size:18px 18px;
+      mask-image:linear-gradient(to bottom,black,transparent 85%);
+    }
+    a{color:inherit}
+    .prep-shell{
+      position:relative;
+      z-index:1;
+      display:grid;
+      grid-template-columns:minmax(0,1.06fr) minmax(340px,.94fr);
+      width:min(1080px,100%);
+      min-height:650px;
+      overflow:hidden;
+      border:1px solid rgba(255,255,255,.8);
+      border-radius:32px;
+      background:#fff;
+      box-shadow:0 42px 110px -42px rgba(15,23,42,.62);
+      animation:shell-in .8s cubic-bezier(.2,.72,.25,1) both;
+    }
+    .prep-copy{
+      position:relative;
+      display:flex;
+      min-width:0;
+      flex-direction:column;
+      justify-content:center;
+      overflow:hidden;
+      padding:clamp(32px,5.3vw,68px);
+      background:
+        radial-gradient(circle at 92% 8%,rgba(200,16,46,.075),transparent 16rem),
+        linear-gradient(145deg,#fff,#f8fafc);
+    }
+    .prep-copy::after{
+      content:"";
+      position:absolute;
+      left:-140px;
+      bottom:-190px;
+      width:380px;
+      height:380px;
+      border:1px solid rgba(200,16,46,.09);
+      border-radius:50%;
+      box-shadow:0 0 0 55px rgba(200,16,46,.022),0 0 0 110px rgba(15,143,135,.018);
+      animation:soft-orbit 18s ease-in-out infinite alternate;
+    }
+    .brand-row{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:18px}
+    .brand{display:flex;align-items:center;gap:13px}
+    .brand img{width:52px;height:52px;border-radius:50%;box-shadow:0 12px 28px -14px rgba(200,16,46,.65)}
+    .brand span{display:block}
+    .brand strong{font-size:14px;letter-spacing:-.02em}
+    .brand small{display:block;margin-top:4px;color:var(--muted);font-size:9px;font-weight:800;letter-spacing:.13em;text-transform:uppercase}
+    .status-chip{display:inline-flex;align-items:center;gap:8px;border:1px solid #e0e6ee;border-radius:999px;background:rgba(255,255,255,.75);padding:8px 11px;color:#536074;font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;backdrop-filter:blur(8px)}
+    .status-dot{position:relative;width:8px;height:8px;border-radius:50%;background:var(--teal)}
+    .status-dot::after{content:"";position:absolute;inset:-4px;border:1px solid rgba(15,143,135,.35);border-radius:50%;animation:pulse 2.2s ease-out infinite}
+    .hero-copy{position:relative;z-index:1;margin:clamp(34px,6vh,62px) 0 0}
+    .eyebrow{margin:0 0 13px;color:var(--red);font-size:11px;font-weight:900;letter-spacing:.16em;text-transform:uppercase}
+    .hero-copy h1{max-width:660px;margin:0;font-size:clamp(38px,5.6vw,68px);line-height:.96;letter-spacing:-.062em;text-wrap:balance}
+    .hero-copy p{max-width:58ch;margin:20px 0 0;color:var(--muted);font-size:clamp(14px,1.6vw,17px);line-height:1.72;text-wrap:pretty}
+    .prep-meter{position:relative;z-index:1;max-width:520px;margin-top:31px}
+    .meter-head{display:flex;align-items:center;justify-content:space-between;gap:20px;color:#536074;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+    .meter-track{height:7px;margin-top:10px;overflow:hidden;border-radius:999px;background:#e9edf2}
+    .meter-fill{position:relative;width:76%;height:100%;overflow:hidden;border-radius:inherit;background:linear-gradient(90deg,var(--red),#e2485f 58%,var(--teal));box-shadow:0 0 18px rgba(200,16,46,.22);animation:meter-in 1.2s .3s cubic-bezier(.2,.72,.25,1) both}
+    .meter-fill::after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 25%,rgba(255,255,255,.55) 48%,transparent 70%);translate:-120% 0;animation:shine 2.8s 1.2s ease-in-out infinite}
+    .access-button{
+      position:relative;
+      z-index:1;
+      display:flex;
+      width:fit-content;
+      min-height:52px;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
+      overflow:hidden;
+      margin-top:30px;
+      border:1px solid #e42a45;
+      border-radius:14px;
+      background:linear-gradient(135deg,#dd1a38,var(--red));
+      padding:0 20px;
+      color:#fff;
+      font-size:13px;
+      font-weight:900;
+      text-decoration:none;
+      box-shadow:0 18px 34px -20px rgba(200,16,46,.9);
+      transition:transform .2s ease,box-shadow .2s ease,filter .2s ease;
+    }
+    .access-button::before{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 25%,rgba(255,255,255,.2) 48%,transparent 70%);translate:-120% 0;transition:translate .55s ease}
+    .access-button:hover{transform:translateY(-2px);filter:saturate(1.1);box-shadow:0 23px 40px -18px rgba(200,16,46,.95)}
+    .access-button:hover::before{translate:120% 0}
+    .access-arrow{font-size:17px;transition:translate .2s ease}
+    .access-button:hover .access-arrow{translate:3px 0}
+    .button-spinner{display:none;width:17px;height:17px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin .75s linear infinite}
+    .access-button[data-loading="true"] .button-spinner{display:block}
+    .access-button[data-loading="true"] .access-arrow{display:none}
+    .prep-note{position:relative;z-index:1;margin:16px 0 0;color:#8791a1;font-size:11px;line-height:1.55}
+    .preview-panel{
+      position:relative;
+      display:flex;
+      min-width:0;
+      flex-direction:column;
+      justify-content:space-between;
+      overflow:hidden;
+      padding:clamp(30px,4.5vw,54px);
+      background:
+        radial-gradient(circle at 110% 0%,rgba(15,143,135,.24),transparent 19rem),
+        linear-gradient(150deg,#16273d,var(--navy) 55%,var(--navy-deep));
+      color:#fff;
+    }
+    .preview-panel::before{content:"";position:absolute;right:-145px;top:-130px;width:380px;height:380px;border:60px solid rgba(255,255,255,.035);border-radius:50%;animation:soft-orbit 15s ease-in-out infinite alternate-reverse}
+    .preview-label{position:relative;z-index:1;color:#99f6e4;font-size:10px;font-weight:900;letter-spacing:.15em;text-transform:uppercase}
+    .signal-visual{position:relative;z-index:1;display:grid;place-items:center;min-height:280px}
+    .signal-orbit{position:relative;display:grid;width:min(230px,65%);aspect-ratio:1;place-items:center;border:1px solid rgba(255,255,255,.08);border-radius:50%;box-shadow:0 0 0 38px rgba(255,255,255,.022),0 0 0 76px rgba(255,255,255,.014)}
+    .signal-orbit::before{content:"";position:absolute;inset:18%;border-radius:50%;background:conic-gradient(from 60deg,transparent,var(--red),#ef4960,var(--teal),transparent 68%);mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 0);animation:spin 9s linear infinite}
+    .signal-core{position:relative;display:grid;width:82px;height:82px;place-items:center;border:1px solid rgba(255,255,255,.13);border-radius:24px;background:rgba(255,255,255,.09);box-shadow:0 22px 50px rgba(0,0,0,.3);backdrop-filter:blur(12px);animation:float 4.6s ease-in-out infinite}
+    .signal-core img{width:56px;height:56px;border-radius:50%}
+    .orbit-dot{position:absolute;width:10px;height:10px;border-radius:50%;background:#fff;box-shadow:0 0 18px rgba(255,255,255,.7)}
+    .orbit-dot.one{left:6%;top:48%}.orbit-dot.two{right:18%;top:9%;width:7px;height:7px;background:#5eead4}.orbit-dot.three{right:2%;bottom:26%;background:#fb7185}
+    .prep-steps{position:relative;z-index:1;display:grid;gap:9px}
+    .step{display:grid;grid-template-columns:9px 1fr auto;align-items:center;gap:11px;border:1px solid rgba(255,255,255,.09);border-radius:14px;background:rgba(255,255,255,.055);padding:12px 13px;color:rgba(255,255,255,.78);backdrop-filter:blur(8px);animation:step-in .55s cubic-bezier(.2,.72,.25,1) both}
+    .step:nth-child(2){animation-delay:.12s}.step:nth-child(3){animation-delay:.24s}
+    .step-dot{width:8px;height:8px;border-radius:50%;background:#5eead4;box-shadow:0 0 0 4px rgba(94,234,212,.1)}
+    .step strong{display:block;color:#fff;font-size:11px}.step small{display:block;margin-top:3px;color:rgba(255,255,255,.45);font-size:9px}
+    .step b{color:#99f6e4;font-size:10px}
+    .preview-footer{position:relative;z-index:1;display:flex;align-items:center;gap:8px;margin-top:20px;color:rgba(255,255,255,.42);font-size:10px}
+    .preview-footer::before{content:"";width:7px;height:7px;border-radius:50%;background:#34d399}
+    @keyframes shell-in{from{opacity:0;transform:translateY(24px) scale(.985)}to{opacity:1;transform:none}}
+    @keyframes meter-in{from{width:0}to{width:76%}}
+    @keyframes shine{0%,40%{translate:-120% 0}80%,100%{translate:120% 0}}
+    @keyframes pulse{0%{opacity:.8;transform:scale(.7)}75%,100%{opacity:0;transform:scale(1.45)}}
+    @keyframes orbit-rotate{to{transform:rotate(360deg)}}
+    @keyframes spin{to{rotate:360deg}}
+    @keyframes soft-orbit{to{transform:rotate(10deg) scale(1.04)}}
+    @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+    @keyframes step-in{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:none}}
+    @media(max-width:850px){
+      body{padding:14px}
+      .prep-shell{grid-template-columns:1fr;min-height:0;border-radius:24px}
+      .prep-copy{padding:28px 24px 30px}
+      .hero-copy{margin-top:34px}
+      .hero-copy h1{font-size:clamp(36px,9vw,58px)}
+      .preview-panel{padding:28px 24px;min-height:350px}
+      .signal-visual{min-height:230px}
+    }
+    @media(max-width:480px){
+      body{padding:0;background:var(--navy)}
+      .prep-shell{border:0;border-radius:0;min-height:100svh}
+      .prep-copy{padding:22px 18px 28px}
+      .brand img{width:44px;height:44px}
+      .status-chip{font-size:8px;padding:7px 9px}
+      .hero-copy h1{font-size:40px}
+      .access-button{width:100%}
+      .preview-panel{padding:26px 18px 30px}
+    }
+    @media(prefers-reduced-motion:reduce){
+      *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
+    }
+  </style>
+</head>
+<body>
+  <main class="prep-shell">
+    <section class="prep-copy">
+      <div class="brand-row">
+        <div class="brand">
+          <img src="/logo-focom-fond-rouge.png" alt="FOCOM">
+          <div><strong>FO COM · Free Distribution</strong><small>Le syndicat des salariés</small></div>
+        </div>
+        <span class="status-chip"><span class="status-dot" aria-hidden="true"></span> Site en préparation</span>
+      </div>
+      <div class="hero-copy">
+        <p class="eyebrow">FOCOM · FREE DISTRIBUTION</p>
+        <h1>Notre site se prépare&nbsp;!</h1>
+        <p>Nous construisons un nouvel espace d’information et d’action syndicale dédié aux salariés de Free Distribution. Une expérience plus claire, plus rapide et plus utile.</p>
+      </div>
+      <div class="prep-meter" aria-label="Avancement du site : 76 %">
+        <div class="meter-head"><span>Préparation du site</span><span>76 %</span></div>
+        <div class="meter-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="76"><div class="meter-fill"></div></div>
+      </div>
+      <a class="access-button" id="access-link" href="/acces">
+        <span class="button-spinner" aria-hidden="true"></span>
+        <span class="access-label">Accès réservé</span>
+        <span class="access-arrow" aria-hidden="true">→</span>
+      </a>
+      <p class="prep-note" id="access-status" role="status" aria-live="polite">Le site complet reste accessible aux salariés et représentants autorisés.</p>
+    </section>
+    <aside class="preview-panel" aria-label="Avancement de la mise en ligne">
+      <span class="preview-label">Mise en ligne progressive</span>
+      <div class="signal-visual" aria-hidden="true">
+        <div class="signal-orbit">
+          <span class="orbit-dot one"></span><span class="orbit-dot two"></span><span class="orbit-dot three"></span>
+          <div class="signal-core"><img src="/logo-focom-fond-rouge.png" alt=""></div>
+        </div>
+      </div>
+      <div class="prep-steps">
+        <div class="step"><span class="step-dot"></span><div><strong>Information syndicale</strong><small>Actualités et prises de position</small></div><b>Prêt</b></div>
+        <div class="step"><span class="step-dot"></span><div><strong>Espace salariés</strong><small>Droits et ressources utiles</small></div><b>En cours</b></div>
+        <div class="step"><span class="step-dot"></span><div><strong>Accès sécurisé</strong><small>Ouvert aux personnes autorisées</small></div><b>Actif</b></div>
+      </div>
+      <div class="preview-footer">FOCOM · Free Distribution</div>
+    </aside>
+  </main>
+  <script>
+    (() => {
+      const link = document.querySelector('#access-link');
+      const label = link.querySelector('.access-label');
+      const status = document.querySelector('#access-status');
+      let pointerFrame = 0;
+
+      document.addEventListener('pointermove', event => {
+        if (pointerFrame) return;
+        pointerFrame = requestAnimationFrame(() => {
+          document.documentElement.style.setProperty('--pointer-x', (event.clientX / innerWidth * 100).toFixed(2) + '%');
+          document.documentElement.style.setProperty('--pointer-y', (event.clientY / innerHeight * 100).toFixed(2) + '%');
+          pointerFrame = 0;
+        });
+      }, { passive: true });
+
+      link.addEventListener('click', event => {
+        event.preventDefault();
+        if (link.dataset.loading === 'true') return;
+        link.dataset.loading = 'true';
+        link.setAttribute('aria-busy', 'true');
+        label.textContent = 'Ouverture de l’accès…';
+        status.textContent = 'Redirection sécurisée vers l’espace réservé.';
+        const navigate = () => location.assign('/acces');
+        if (document.startViewTransition && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          document.startViewTransition(navigate);
+        } else {
+          window.setTimeout(navigate, 220);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>`,{headers:{"content-type":"text/html; charset=utf-8","cache-control":"no-store","x-robots-tag":"noindex, nofollow","content-security-policy":"default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"}});
+}
 function maintenancePage(message){const safe=String(message||"Maintenance programmée").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));return new Response('<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Maintenance · FO Free Distribution</title><style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:linear-gradient(135deg,#f7f7f8,#fff 60%,#fbecef);font:16px system-ui;color:#24252b}main{width:min(100%,680px);padding:clamp(30px,7vw,64px);text-align:center;background:white;border:1px solid #eee;border-radius:22px;box-shadow:0 18px 60px #25262b12}h1{font-size:clamp(30px,6vw,44px)}p{color:#686a73;line-height:1.8;white-space:pre-line}</style></head><body><main><h1>Maintenance programmée</h1><p>'+safe+'</p></main></body></html>',{headers:{"content-type":"text/html; charset=utf-8","cache-control":"no-store","x-robots-tag":"noindex, nofollow"}})}
 function modernAccessLoginPage(configured){
   const availability = configured ? "" : "disabled";
@@ -1395,6 +1675,7 @@ function modernAccessLoginPage(configured){
   <meta name="robots" content="noindex,nofollow">
   <title>Accès réservé · FO Free Distribution</title>
   <style>
+    @view-transition{navigation:auto}
     :root{
       color-scheme:light;
       --red:#c8102e;
@@ -1810,7 +2091,7 @@ export default {
     if (accessResponse) return accessResponse;
     if (!isAdminPath && !isStaticAsset && !SITE_ACCESS_EXEMPT_PATHS.has(url.pathname) && !await hasSiteAccess(request, env)) {
       if (url.pathname.startsWith("/api/")) return json({ error: "SITE_ACCESS_REQUIRED" }, 401, origin);
-      return constructionPage();
+      return animatedConstructionPage();
     }
     if(!isAdminPath && !isStaticAsset && !url.pathname.startsWith("/api/") && !SITE_ACCESS_EXEMPT_PATHS.has(url.pathname) && env.SURVEYS_DB){
       try{
